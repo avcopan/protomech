@@ -1,0 +1,182 @@
+SPECIES 
+C4H10           ! SMILES: CCCC                   InChi: InChI=1S/C4H10/c1-3-4-2/h3-4H2,1-2H3
+H               ! SMILES: [H]                    InChi: InChI=1S/H
+O               ! SMILES: [O]                    InChi: InChI=1S/O
+OH              ! SMILES: [OH]                   InChi: InChI=1S/HO/h1H
+O2              ! SMILES: O=O                    InChi: InChI=1S/O2/c1-2
+HO2             ! SMILES: [O]O                   InChi: InChI=1S/HO2/c1-2/h1H
+CH3             ! SMILES: [CH3]                  InChi: InChI=1S/CH3/h1H3
+H2              ! SMILES: [HH]                   InChi: InChI=1S/H2/h1H
+C4H9-xtr        ! SMILES: [CH2]CCC               InChi: InChI=1S/C4H9/c1-3-4-2/h1,3-4H2,2H3
+C4H9-0Ae        ! SMILES: C[CH]CC                InChi: InChI=1S/C4H9/c1-3-4-2/h3H,4H2,1-2H3
+H2O             ! SMILES: O                      InChi: InChI=1S/H2O/h1H2
+H2O2            ! SMILES: OO                     InChi: InChI=1S/H2O2/c1-2/h1-2H
+CH4             ! SMILES: C                      InChi: InChI=1S/CH4/h1H4
+C4-WJN-ALK      ! SMILES: C=CCC                  InChi: InChI=1S/C4H8/c1-3-4-2/h3H,1,4H2,2H3
+C2H5            ! SMILES: [CH2]C                 InChi: InChI=1S/C2H5/c1-2/h1H2,2H3
+C2H4            ! SMILES: C=C                    InChi: InChI=1S/C2H4/c1-2/h1-2H2
+C4-8by-ALK      ! SMILES: CC=CC                  InChi: InChI=1S/C4H8/c1-3-4-2/h3-4H,1-2H3
+C3-6h4-ALK      ! SMILES: C=CC                   InChi: InChI=1S/C3H6/c1-3-2/h3H,1H2,2H3
+C4-YRT-RO2      ! SMILES: CCCCO[O]               InChi: InChI=1S/C4H9O2/c1-2-3-4-6-5/h2-4H2,1H3
+C4-rEE-RO2      ! SMILES: CCC(C)O[O]             InChi: InChI=1S/C4H9O2/c1-3-4(2)6-5/h4H,3H2,1-2H3
+C4-tIt-QOOH     ! SMILES: [CH2]CC(C)OO           InChi: InChI=1S/C4H9O2/c1-3-4(2)6-5/h4-5H,1,3H2,2H3
+C4-Wb9-QOOH     ! SMILES: [CH2]C(CC)OO           InChi: InChI=1S/C4H9O2/c1-3-4(2)6-5/h4-5H,2-3H2,1H3
+C4-buV-QOOH     ! SMILES: C[CH]C(C)OO            InChi: InChI=1S/C4H9O2/c1-3-4(2)6-5/h3-5H,1-2H3
+C4-NCg-QOOH     ! SMILES: CC[C](C)OO             InChi: InChI=1S/C4H9O2/c1-3-4(2)6-5/h5H,3H2,1-2H3
+C4-stL-QOOH     ! SMILES: [CH2]CCCOO             InChi: InChI=1S/C4H9O2/c1-2-3-4-6-5/h5H,1-4H2
+C4-61E-QOOH     ! SMILES: C[CH]CCOO              InChi: InChI=1S/C4H9O2/c1-2-3-4-6-5/h2,5H,3-4H2,1H3
+C4-BQj-QOOH     ! SMILES: CC[CH]COO              InChi: InChI=1S/C4H9O2/c1-2-3-4-6-5/h3,5H,2,4H2,1H3
+C4-F3p-QOOH     ! SMILES: CCC[CH]OO              InChi: InChI=1S/C4H9O2/c1-2-3-4-6-5/h4-5H,2-3H2,1H3
+C4-hFI-EPX      ! SMILES: C1CCOC1                InChi: InChI=1S/C4H8O/c1-2-4-5-3-1/h1-4H2
+C4-d04-EPX      ! SMILES: CCC1CO1                InChi: InChI=1S/C4H8O/c1-2-4-3-5-4/h4H,2-3H2,1H3
+C4-n7K-EPX      ! SMILES: CC1CCO1                InChi: InChI=1S/C4H8O/c1-4-2-3-5-4/h4H,2-3H2,1H3
+C4-9rt-EPX      ! SMILES: CC1OC1C                InChi: InChI=1S/C4H8O/c1-3-4(2)5-3/h3-4H,1-2H3
+C4-8Cz-OOHY     ! SMILES: [O]OCCCCOO             InChi: InChI=1S/C4H9O4/c5-7-3-1-2-4-8-6/h5H,1-4H2
+C4-7DZ-OOHY     ! SMILES: CCC(COO)O[O]           InChi: InChI=1S/C4H9O4/c1-2-4(8-6)3-7-5/h4-5H,2-3H2,1H3
+C4-FAF-OOHY     ! SMILES: CC(CCOO)O[O]           InChi: InChI=1S/C4H9O4/c1-4(8-6)2-3-7-5/h4-5H,2-3H2,1H3
+C4-309-OOHY     ! SMILES: CC(CCO[O])OO           InChi: InChI=1S/C4H9O4/c1-4(8-6)2-3-7-5/h4,6H,2-3H2,1H3
+C4-76m-OOHY     ! SMILES: CC(O[O])C(C)OO         InChi: InChI=1S/C4H9O4/c1-3(7-5)4(2)8-6/h3-5H,1-2H3
+C4-RU0-OOHY     ! SMILES: CCC(CO[O])OO           InChi: InChI=1S/C4H9O4/c1-2-4(8-6)3-7-5/h4,6H,2-3H2,1H3
+C4-b9f-DHY      ! SMILES: OOC[CH]CCOO            InChi: InChI=1S/C4H9O4/c5-7-3-1-2-4-8-6/h1,5-6H,2-4H2
+C4-DMF-DHY      ! SMILES: OO[CH]CCCOO            InChi: InChI=1S/C4H9O4/c5-7-3-1-2-4-8-6/h3,5-6H,1-2,4H2
+C4-kZc-DHY      ! SMILES: [CH2]CC(COO)OO         InChi: InChI=1S/C4H9O4/c1-2-4(8-6)3-7-5/h4-6H,1-3H2
+C4-lLi-DHY      ! SMILES: C[CH]C(COO)OO          InChi: InChI=1S/C4H9O4/c1-2-4(8-6)3-7-5/h2,4-6H,3H2,1H3
+C4-Dxp-DHY      ! SMILES: CCC([CH]OO)OO          InChi: InChI=1S/C4H9O4/c1-2-4(8-6)3-7-5/h3-6H,2H2,1H3
+C4-Lux-DHY      ! SMILES: CC[C](COO)OO           InChi: InChI=1S/C4H9O4/c1-2-4(8-6)3-7-5/h5-6H,2-3H2,1H3
+C4-JgW-DHY      ! SMILES: [CH2]C(CCOO)OO         InChi: InChI=1S/C4H9O4/c1-4(8-6)2-3-7-5/h4-6H,1-3H2
+C4-Q6g-DHY      ! SMILES: CC([CH]COO)OO          InChi: InChI=1S/C4H9O4/c1-4(8-6)2-3-7-5/h2,4-6H,3H2,1H3
+C4-KKG-DHY      ! SMILES: CC(C[CH]OO)OO          InChi: InChI=1S/C4H9O4/c1-4(8-6)2-3-7-5/h3-6H,2H2,1H3
+C4-w3C-DHY      ! SMILES: C[C](CCOO)OO           InChi: InChI=1S/C4H9O4/c1-4(8-6)2-3-7-5/h5-6H,2-3H2,1H3
+C4-PAK-DHY      ! SMILES: [CH2]C(OO)C(C)OO       InChi: InChI=1S/C4H9O4/c1-3(7-5)4(2)8-6/h3-6H,1H2,2H3
+C4-I8V-DHY      ! SMILES: C[C](OO)C(C)OO         InChi: InChI=1S/C4H9O4/c1-3(7-5)4(2)8-6/h3,5-6H,1-2H3
+C4-mLd-ANHY     ! SMILES: C=CCCOO                InChi: InChI=1S/C4H8O2/c1-2-3-4-6-5/h2,5H,1,3-4H2
+C4-zxz-ANHY     ! SMILES: CC=CCOO                InChi: InChI=1S/C4H8O2/c1-2-3-4-6-5/h2-3,5H,4H2,1H3
+C4-Od5-ANHY     ! SMILES: CCC=COO                InChi: InChI=1S/C4H8O2/c1-2-3-4-6-5/h3-5H,2H2,1H3
+C4-QEM-ANHY     ! SMILES: C=CC(C)OO              InChi: InChI=1S/C4H8O2/c1-3-4(2)6-5/h3-5H,1H2,2H3
+C4-oG9-ANHY     ! SMILES: CC=C(C)OO              InChi: InChI=1S/C4H8O2/c1-3-4(2)6-5/h3,5H,1-2H3
+C4-7Ok-ANHY     ! SMILES: C=C(CC)OO              InChi: InChI=1S/C4H8O2/c1-3-4(2)6-5/h5H,2-3H2,1H3
+C4-zMU-EPHY     ! SMILES: OOCCC1CO1              InChi: InChI=1S/C4H8O3/c5-7-2-1-4-3-6-4/h4-5H,1-3H2
+C4-KEX-EPHY     ! SMILES: OOCC1CCO1              InChi: InChI=1S/C4H8O3/c5-7-3-4-1-2-6-4/h4-5H,1-3H2
+C4-XIs-EPHY     ! SMILES: OOC1CCOC1              InChi: InChI=1S/C4H8O3/c5-7-4-1-2-6-3-4/h4-5H,1-3H2
+C4-ZSL-EPHY     ! SMILES: CC1OCC1OO              InChi: InChI=1S/C4H8O3/c1-3-4(7-5)2-6-3/h3-5H,2H2,1H3
+C4-wnG-EPHY     ! SMILES: CC1OC1COO              InChi: InChI=1S/C4H8O3/c1-3-4(7-3)2-6-5/h3-5H,2H2,1H3
+C4-GLR-EPHY     ! SMILES: CC(OO)C1CO1            InChi: InChI=1S/C4H8O3/c1-3(7-5)4-2-6-4/h3-5H,2H2,1H3
+C4-rE3-KET      ! SMILES: CCC(C)=O               InChi: InChI=1S/C4H8O/c1-3-4(2)5/h3H2,1-2H3
+C4-4mn-ALD      ! SMILES: CCCC=O                 InChi: InChI=1S/C4H8O/c1-2-3-4-5/h4H,2-3H2,1H3
+C4-OLo-AHP      ! SMILES: O=CCCCOO               InChi: InChI=1S/C4H8O3/c5-3-1-2-4-7-6/h3,6H,1-2,4H2
+C4-CVd-AHP      ! SMILES: CCC(C=O)OO             InChi: InChI=1S/C4H8O3/c1-2-4(3-5)7-6/h3-4,6H,2H2,1H3
+C4-JyC-AHP      ! SMILES: CC(CC=O)OO             InChi: InChI=1S/C4H8O3/c1-4(7-6)2-3-5/h3-4,6H,2H2,1H3
+C4-sjt-KHP      ! SMILES: CCC(=O)COO             InChi: InChI=1S/C4H8O3/c1-2-4(5)3-7-6/h6H,2-3H2,1H3
+C4-ewt-KHP      ! SMILES: CC(=O)CCOO             InChi: InChI=1S/C4H8O3/c1-4(5)2-3-7-6/h6H,2-3H2,1H3
+C4-qOc-KHP      ! SMILES: CC(=O)C(C)OO           InChi: InChI=1S/C4H8O3/c1-3(5)4(2)7-6/h4,6H,1-2H3
+C4-Tpd-AKOX     ! SMILES: [O]CCCC=O              InChi: InChI=1S/C4H7O2/c5-3-1-2-4-6/h3H,1-2,4H2
+C4-0vO-AKOX     ! SMILES: CCC([O])C=O            InChi: InChI=1S/C4H7O2/c1-2-4(6)3-5/h3-4H,2H2,1H3
+C4-kYi-AKOX     ! SMILES: CC([O])CC=O            InChi: InChI=1S/C4H7O2/c1-4(6)2-3-5/h3-4H,2H2,1H3
+C4-Opo-KKOX     ! SMILES: CCC(=O)C[O]            InChi: InChI=1S/C4H7O2/c1-2-4(6)3-5/h2-3H2,1H3
+C4-X5N-KKOX     ! SMILES: CC(=O)CC[O]            InChi: InChI=1S/C4H7O2/c1-4(6)2-3-5/h2-3H2,1H3
+C4-f8C-KKOX     ! SMILES: CC(=O)C(C)[O]          InChi: InChI=1S/C4H7O2/c1-3(5)4(2)6/h3H,1-2H3
+END 
+
+REACTIONS     CAL/MOLE     MOLES
+C4H9-xtr = C4H9-0Ae                 1.000E+00     0.000        0  ! pes.subpes.channel  1.1.1
+C4H9-xtr = C4-WJN-ALK + H           1.000E+00     0.000        0  ! pes.subpes.channel  1.1.2
+C4H9-xtr = C2H5 + C2H4              1.000E+00     0.000        0  ! pes.subpes.channel  1.1.3
+C4H9-0Ae = C4-WJN-ALK + H           1.000E+00     0.000        0  ! pes.subpes.channel  1.1.4
+C4H9-0Ae = C4-8by-ALK + H           1.000E+00     0.000        0  ! pes.subpes.channel  1.1.5
+C4H9-0Ae = C3-6h4-ALK + CH3         1.000E+00     0.000        0  ! pes.subpes.channel  1.1.6
+C4H10 + H = H2 + C4H9-0Ae           1.000E+00     0.000        0  ! pes.subpes.channel  2.1.1
+C4H10 + H = H2 + C4H9-xtr           1.000E+00     0.000        0  ! pes.subpes.channel  2.2.2
+C4H10 + O = OH + C4H9-0Ae           1.000E+00     0.000        0  ! pes.subpes.channel  3.1.1
+C4H10 + O = OH + C4H9-xtr           1.000E+00     0.000        0  ! pes.subpes.channel  3.2.2
+C4H10 + OH = H2O + C4H9-0Ae         1.000E+00     0.000        0  ! pes.subpes.channel  4.1.1
+C4H10 + OH = H2O + C4H9-xtr         1.000E+00     0.000        0  ! pes.subpes.channel  4.2.2
+C4H9-xtr + O2 = C4-YRT-RO2          1.000E+00     0.000        0  ! pes.subpes.channel  5.1.1
+C4-stL-QOOH = C4-hFI-EPX + OH       1.000E+00     0.000        0  ! pes.subpes.channel  5.1.2
+C4-YRT-RO2 = C4-stL-QOOH            1.000E+00     0.000        0  ! pes.subpes.channel  5.1.3
+C4-YRT-RO2 = C4-WJN-ALK + HO2       1.000E+00     0.000        0  ! pes.subpes.channel  5.1.4
+C4-YRT-RO2 = C4-F3p-QOOH            1.000E+00     0.000        0  ! pes.subpes.channel  5.1.5
+C4-YRT-RO2 = C4-BQj-QOOH            1.000E+00     0.000        0  ! pes.subpes.channel  5.1.6
+C4-YRT-RO2 = C4-61E-QOOH            1.000E+00     0.000        0  ! pes.subpes.channel  5.1.7
+C4-BQj-QOOH = C4-d04-EPX + OH       1.000E+00     0.000        0  ! pes.subpes.channel  5.1.8
+C4-BQj-QOOH = C4-WJN-ALK + HO2      1.000E+00     0.000        0  ! pes.subpes.channel  5.1.9
+C4-61E-QOOH = C4-n7K-EPX + OH       1.000E+00     0.000        0  ! pes.subpes.channel  5.1.10
+C4H9-0Ae + O2 = C4-rEE-RO2          1.000E+00     0.000        0  ! pes.subpes.channel  5.2.11
+C4-tIt-QOOH = C4-n7K-EPX + OH       1.000E+00     0.000        0  ! pes.subpes.channel  5.2.12
+C4-rEE-RO2 = C4-tIt-QOOH            1.000E+00     0.000        0  ! pes.subpes.channel  5.2.13
+C4-rEE-RO2 = C4-buV-QOOH            1.000E+00     0.000        0  ! pes.subpes.channel  5.2.14
+C4-rEE-RO2 = C4-Wb9-QOOH            1.000E+00     0.000        0  ! pes.subpes.channel  5.2.15
+C4-rEE-RO2 = C4-WJN-ALK + HO2       1.000E+00     0.000        0  ! pes.subpes.channel  5.2.16
+C4-rEE-RO2 = C4-NCg-QOOH            1.000E+00     0.000        0  ! pes.subpes.channel  5.2.17
+C4-rEE-RO2 = C4-8by-ALK + HO2       1.000E+00     0.000        0  ! pes.subpes.channel  5.2.18
+C4-buV-QOOH = C4-9rt-EPX + OH       1.000E+00     0.000        0  ! pes.subpes.channel  5.2.19
+C4-buV-QOOH = C4-8by-ALK + HO2      1.000E+00     0.000        0  ! pes.subpes.channel  5.2.20
+C4-Wb9-QOOH = C4-d04-EPX + OH       1.000E+00     0.000        0  ! pes.subpes.channel  5.2.21
+C4-Wb9-QOOH = C4-WJN-ALK + HO2      1.000E+00     0.000        0  ! pes.subpes.channel  5.2.22
+C4H10 + O2 = HO2 + C4H9-0Ae         1.000E+00     0.000        0  ! pes.subpes.channel  6.1.1
+C4H10 + O2 = HO2 + C4H9-xtr         1.000E+00     0.000        0  ! pes.subpes.channel  6.2.2
+C4H10 + HO2 = H2O2 + C4H9-0Ae       1.000E+00     0.000        0  ! pes.subpes.channel  7.1.1
+C4H10 + HO2 = H2O2 + C4H9-xtr       1.000E+00     0.000        0  ! pes.subpes.channel  7.2.2
+C4-CVd-AHP = C4-0vO-AKOX + OH       1.000E+00     0.000        0  ! pes.subpes.channel  8.1.1
+C4-JyC-AHP = C4-kYi-AKOX + OH       1.000E+00     0.000        0  ! pes.subpes.channel  8.2.2
+C4-OLo-AHP = C4-Tpd-AKOX + OH       1.000E+00     0.000        0  ! pes.subpes.channel  8.3.3
+C4-ewt-KHP = C4-X5N-KKOX + OH       1.000E+00     0.000        0  ! pes.subpes.channel  8.4.4
+C4-qOc-KHP = C4-f8C-KKOX + OH       1.000E+00     0.000        0  ! pes.subpes.channel  8.5.5
+C4-sjt-KHP = C4-Opo-KKOX + OH       1.000E+00     0.000        0  ! pes.subpes.channel  8.6.6
+C4-tIt-QOOH + O2 = C4-309-OOHY      1.000E+00     0.000        0  ! pes.subpes.channel  9.1.1
+C4-Q6g-DHY = C4-zxz-ANHY + HO2      1.000E+00     0.000        0  ! pes.subpes.channel  9.1.2
+C4-Q6g-DHY = C4-wnG-EPHY + OH       1.000E+00     0.000        0  ! pes.subpes.channel  9.1.3
+C4-Q6g-DHY = C4-QEM-ANHY + HO2      1.000E+00     0.000        0  ! pes.subpes.channel  9.1.4
+C4-Q6g-DHY = C4-GLR-EPHY + OH       1.000E+00     0.000        0  ! pes.subpes.channel  9.1.5
+C4-JgW-DHY = C4-zMU-EPHY + OH       1.000E+00     0.000        0  ! pes.subpes.channel  9.1.6
+C4-JgW-DHY = C4-mLd-ANHY + HO2      1.000E+00     0.000        0  ! pes.subpes.channel  9.1.7
+C4-JgW-DHY = C4-XIs-EPHY + OH       1.000E+00     0.000        0  ! pes.subpes.channel  9.1.8
+C4-FAF-OOHY = C4-zxz-ANHY + HO2     1.000E+00     0.000        0  ! pes.subpes.channel  9.1.9
+C4-FAF-OOHY = C4-w3C-DHY            1.000E+00     0.000        0  ! pes.subpes.channel  9.1.10
+C4-FAF-OOHY = C4-mLd-ANHY + HO2     1.000E+00     0.000        0  ! pes.subpes.channel  9.1.11
+C4-FAF-OOHY = C4-Q6g-DHY            1.000E+00     0.000        0  ! pes.subpes.channel  9.1.12
+C4-FAF-OOHY = C4-KKG-DHY            1.000E+00     0.000        0  ! pes.subpes.channel  9.1.13
+C4-FAF-OOHY = C4-JgW-DHY            1.000E+00     0.000        0  ! pes.subpes.channel  9.1.14
+C4-FAF-OOHY = C4-309-OOHY           1.000E+00     0.000        0  ! pes.subpes.channel  9.1.15
+C4-61E-QOOH + O2 = C4-FAF-OOHY      1.000E+00     0.000        0  ! pes.subpes.channel  9.1.16
+C4-309-OOHY = C4-w3C-DHY            1.000E+00     0.000        0  ! pes.subpes.channel  9.1.17
+C4-309-OOHY = C4-QEM-ANHY + HO2     1.000E+00     0.000        0  ! pes.subpes.channel  9.1.18
+C4-309-OOHY = C4-Q6g-DHY            1.000E+00     0.000        0  ! pes.subpes.channel  9.1.19
+C4-309-OOHY = C4-KKG-DHY            1.000E+00     0.000        0  ! pes.subpes.channel  9.1.20
+C4-309-OOHY = C4-JgW-DHY            1.000E+00     0.000        0  ! pes.subpes.channel  9.1.21
+C4-buV-QOOH + O2 = C4-76m-OOHY      1.000E+00     0.000        0  ! pes.subpes.channel  9.2.22
+C4-PAK-DHY = C4-ZSL-EPHY + OH       1.000E+00     0.000        0  ! pes.subpes.channel  9.2.23
+C4-PAK-DHY = C4-QEM-ANHY + HO2      1.000E+00     0.000        0  ! pes.subpes.channel  9.2.24
+C4-PAK-DHY = C4-GLR-EPHY + OH       1.000E+00     0.000        0  ! pes.subpes.channel  9.2.25
+C4-76m-OOHY = C4-oG9-ANHY + HO2     1.000E+00     0.000        0  ! pes.subpes.channel  9.2.26
+C4-76m-OOHY = C4-QEM-ANHY + HO2     1.000E+00     0.000        0  ! pes.subpes.channel  9.2.27
+C4-76m-OOHY = C4-PAK-DHY            1.000E+00     0.000        0  ! pes.subpes.channel  9.2.28
+C4-76m-OOHY = C4-I8V-DHY            1.000E+00     0.000        0  ! pes.subpes.channel  9.2.29
+C4-lLi-DHY = C4-zxz-ANHY + HO2      1.000E+00     0.000        0  ! pes.subpes.channel  9.3.30
+C4-lLi-DHY = C4-wnG-EPHY + OH       1.000E+00     0.000        0  ! pes.subpes.channel  9.3.31
+C4-lLi-DHY = C4-ZSL-EPHY + OH       1.000E+00     0.000        0  ! pes.subpes.channel  9.3.32
+C4-kZc-DHY = C4-XIs-EPHY + OH       1.000E+00     0.000        0  ! pes.subpes.channel  9.3.33
+C4-kZc-DHY = C4-KEX-EPHY + OH       1.000E+00     0.000        0  ! pes.subpes.channel  9.3.34
+C4-Wb9-QOOH + O2 = C4-RU0-OOHY      1.000E+00     0.000        0  ! pes.subpes.channel  9.3.35
+C4-RU0-OOHY = C4-lLi-DHY            1.000E+00     0.000        0  ! pes.subpes.channel  9.3.36
+C4-RU0-OOHY = C4-kZc-DHY            1.000E+00     0.000        0  ! pes.subpes.channel  9.3.37
+C4-RU0-OOHY = C4-Lux-DHY            1.000E+00     0.000        0  ! pes.subpes.channel  9.3.38
+C4-RU0-OOHY = C4-Dxp-DHY            1.000E+00     0.000        0  ! pes.subpes.channel  9.3.39
+C4-RU0-OOHY = C4-7Ok-ANHY + HO2     1.000E+00     0.000        0  ! pes.subpes.channel  9.3.40
+C4-BQj-QOOH + O2 = C4-7DZ-OOHY      1.000E+00     0.000        0  ! pes.subpes.channel  9.3.41
+C4-7DZ-OOHY = C4-zxz-ANHY + HO2     1.000E+00     0.000        0  ! pes.subpes.channel  9.3.42
+C4-7DZ-OOHY = C4-lLi-DHY            1.000E+00     0.000        0  ! pes.subpes.channel  9.3.43
+C4-7DZ-OOHY = C4-kZc-DHY            1.000E+00     0.000        0  ! pes.subpes.channel  9.3.44
+C4-7DZ-OOHY = C4-RU0-OOHY           1.000E+00     0.000        0  ! pes.subpes.channel  9.3.45
+C4-7DZ-OOHY = C4-Od5-ANHY + HO2     1.000E+00     0.000        0  ! pes.subpes.channel  9.3.46
+C4-7DZ-OOHY = C4-Lux-DHY            1.000E+00     0.000        0  ! pes.subpes.channel  9.3.47
+C4-7DZ-OOHY = C4-Dxp-DHY            1.000E+00     0.000        0  ! pes.subpes.channel  9.3.48
+C4-stL-QOOH + O2 = C4-8Cz-OOHY      1.000E+00     0.000        0  ! pes.subpes.channel  9.4.49
+C4-b9f-DHY = C4-zMU-EPHY + OH       1.000E+00     0.000        0  ! pes.subpes.channel  9.4.50
+C4-b9f-DHY = C4-mLd-ANHY + HO2      1.000E+00     0.000        0  ! pes.subpes.channel  9.4.51
+C4-b9f-DHY = C4-KEX-EPHY + OH       1.000E+00     0.000        0  ! pes.subpes.channel  9.4.52
+C4-8Cz-OOHY = C4-mLd-ANHY + HO2     1.000E+00     0.000        0  ! pes.subpes.channel  9.4.53
+C4-8Cz-OOHY = C4-b9f-DHY            1.000E+00     0.000        0  ! pes.subpes.channel  9.4.54
+C4-8Cz-OOHY = C4-DMF-DHY            1.000E+00     0.000        0  ! pes.subpes.channel  9.4.55
+C4H10 + CH3 = CH4 + C4H9-0Ae        1.000E+00     0.000        0  ! pes.subpes.channel  10.1.1
+C4H10 + CH3 = CH4 + C4H9-xtr        1.000E+00     0.000        0  ! pes.subpes.channel  10.2.2
+END
