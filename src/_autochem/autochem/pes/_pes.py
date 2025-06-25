@@ -157,6 +157,15 @@ def fake_well_keys(surf: Surface) -> list[int]:
 
 
 # Transformations
+def set_no_fake_well_extension(surf: Surface) -> Surface:
+    """Turn off well extension for fake wells.
+
+    :param surf: Surface
+    :return: Surface
+    """
+    return set_no_well_extension(surf, fake_well_keys(surf))
+
+
 def set_no_well_extension(surf: Surface, keys: Sequence[int]) -> Surface:
     """Turn off well extension for given keys.
 

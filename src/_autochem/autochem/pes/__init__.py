@@ -10,6 +10,7 @@ from ._pes import (
     fake_well_keys,
     from_mess_input,
     mess_input,
+    set_no_fake_well_extension,
     set_no_well_extension,
 )
 
@@ -24,6 +25,7 @@ __all__ = [
     # Properties
     "fake_well_keys",
     # Transformations
+    "set_no_fake_well_extension",
     "set_no_well_extension",
     # I/O
     "from_mess_input",

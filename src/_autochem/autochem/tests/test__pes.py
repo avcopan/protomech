@@ -13,8 +13,7 @@ def test__from_mess_input(mess_inp_name):
     """Test autochem.pes.from_mess_input."""
     mess_inp = DATA_PATH / mess_inp_name
     surf = pes.from_mess_input(mess_inp)
-    fake_keys = pes.fake_well_keys(surf)
-    surf = pes.set_no_well_extension(surf, fake_keys)
+    surf = pes.set_no_fake_well_extension(surf)
     print(pes.mess_input(surf))
 
 
