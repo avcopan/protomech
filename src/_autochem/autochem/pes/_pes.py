@@ -115,6 +115,8 @@ class Surface(pydantic.BaseModel):
     nodes: list[Node]
     edges: list[Edge]
 
+    mess_header: str | None = None
+
     @pydantic.model_validator(mode="after")
     def _validate_keys(self):
         # Validate node keys
@@ -181,16 +183,20 @@ def from_mess_input(mess_inp: str | Path) -> Surface:
     :param mess_inp: MESS input
     :return: Surface
     """
-    data = mess_i.parse_blocks(mess_inp)
-    node_data = [d for d in data if d.type in ("Well", "Bimolecular")]
-    edge_data = [d for d in data if d.type == "Barrier"]
+    # Parse header
+    header = mess_i.parse_header(mess_inp)
 
-    key_dct = {d.label: i for i, d in enumerate(node_data)}
+    # Parse blocks and separate node and edge data
+    block_data = mess_i.parse_blocks(mess_inp)
+    node_block_data = [d for d in block_data if d.type in ("Well", "Bimolecular")]
+    edge_block_data = [d for d in block_data if d.type == "Barrier"]
 
-    nodes = [node_from_mess_block_parse_data(d, key_dct) for d in node_data]
-    edges = [edge_from_mess_lock_parse_data(d, key_dct) for d in edge_data]
+    # Instantiate nodes and edges
+    key_dct = {d.label: i for i, d in enumerate(node_block_data)}
+    nodes = [node_from_mess_block_parse_data(d, key_dct) for d in node_block_data]
+    edges = [edge_from_mess_block_parse_data(d, key_dct) for d in edge_block_data]
 
-    return Surface(nodes=nodes, edges=edges)
+    return Surface(nodes=nodes, edges=edges, mess_header=header)
 
 
 def mess_input(surf: Surface) -> str:
@@ -201,7 +207,7 @@ def mess_input(surf: Surface) -> str:
     """
     node_blocks = [n.mess_block for n in surf.nodes]
     edge_blocks = [e.mess_block for e in surf.edges]
-    return "\n!\n".join([*node_blocks, *edge_blocks])
+    return "\n!\n".join([surf.mess_header, *node_blocks, *edge_blocks])
 
 
 # Helpers
@@ -250,7 +256,7 @@ def node_from_mess_block_parse_data(
     )
 
 
-def edge_from_mess_lock_parse_data(
+def edge_from_mess_block_parse_data(
     block_data: mess_i.MessBlockParseData, key_dct: dict[str, int]
 ) -> Edge:
     """Generate Barrier object from block.

@@ -16,6 +16,18 @@ BLOCK_END = pp.Keyword("End") + pp.FollowedBy(BLOCK_START | END_FILE)
 FILE_HEADER = pp.SkipTo(BLOCK_START)
 
 
+def parse_header(mess_inp: str | Path) -> str | None:
+    """Read header.
+
+    :param mess_inp: MESS input
+    :return: Headers
+    """
+    mess_inp = mess_inp.read_text() if isinstance(mess_inp, Path) else mess_inp
+
+    expr = FILE_HEADER(Key.header)
+    return expr.parse_string(mess_inp).get(Key.header)
+
+
 class MessBlockParseData(BaseModel):
     """Parsed MESS block data."""
 
@@ -53,6 +65,7 @@ class Key:
 
     unit = "unit"
     energy = "energy"
+    header = "header"
 
 
 UNIT = pp.Suppress("[") + pp.Word(pp.alphas + "/")(Key.unit) + pp.Suppress("]")
