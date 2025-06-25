@@ -1,4 +1,4 @@
-name: test
+name: test-automol
 
 on: 
   push:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
+  test-automol:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -21,4 +21,4 @@ jobs:
       # Test
       - name: Test
         run: |
-          pixi run -e test pytest -v src/automech
+          pixi run -e test pytest -n auto -v src/_autochem/automol

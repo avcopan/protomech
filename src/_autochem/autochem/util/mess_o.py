@@ -30,7 +30,7 @@ NUMBERS = pp.OneOrMore(ppc.number, stop_on=pp.LineEnd())
 NUMBERS_ = pp.OneOrMore(ppc.number | NAN, stop_on=pp.LineEnd())
 ID = pp.Combine(pp.Char("WP") + pp.Word(pp.nums))
 CHAN = ID(Key.id1) + pp.Literal("->") + ID(Key.id2)
-TEMP_LINE = pp.Suppress(pp.Literal("P\T")) + NUMBERS
+TEMP_LINE = pp.Suppress(pp.Literal(r"P\T")) + NUMBERS
 RATE_LINE = ppc.number + NUMBERS_
 RATE_LINES = pp.OneOrMore(pp.Group(RATE_LINE))
 HIGH_LINE = pp.Suppress(pp.Keyword("O-O")) + NUMBERS_

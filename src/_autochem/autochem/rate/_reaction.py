@@ -10,7 +10,7 @@ import numpy
 import pydantic
 
 from ..unit_ import UnitsData
-from ..util import chemkin, mess, plot
+from ..util import chemkin, mess_o, plot
 from ..util.type_ import Scalable, Scalers
 from . import data
 from .data import ArrheniusRateFit, PlogRateFit, Rate, Rate_, RateFit
@@ -76,7 +76,7 @@ def from_mess_channel_output(mess_chan_out: str, reversible: bool = True) -> Rea
     :param order: Order
     :return: Rate data
     """
-    res = mess.parse_output_channel(mess_chan_out)
+    res = mess_o.parse_output_channel(mess_chan_out)
     assert res.id1 is not None, res
     assert res.id2 is not None, res
 

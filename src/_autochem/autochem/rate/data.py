@@ -18,7 +18,7 @@ from pydantic_core import core_schema
 
 from .. import unit_
 from ..unit_ import UNITS, C, D, Dimension, UnitManager, Units, UnitsData, const
-from ..util import chemkin, mess, plot
+from ..util import chemkin, mess_o, plot
 from ..util.type_ import Frozen, NDArray_, Scalable, Scalers, SubclassTyped
 from . import blend
 from .blend import BlendingFunction_
@@ -711,13 +711,13 @@ def from_mess_channel_output(mess_chan_out: str, order: int) -> Rate:
     :param order: Order
     :return: Rate data
     """
-    res = mess.parse_output_channel(mess_chan_out)
+    res = mess_o.parse_output_channel(mess_chan_out)
     return from_mess_channel_output_parse_results(res, order=order)
 
 
 # Parse helpers
 def from_mess_channel_output_parse_results(
-    res: mess.MessOutputChannelParseResults, order: int
+    res: mess_o.MessOutputChannelParseResults, order: int
 ) -> Rate:
     """Extract rate data from MESS output parse results.
 
