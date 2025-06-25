@@ -143,6 +143,7 @@ def test__expand_stereo(
     ],
 )
 def test__rename(mech0, name_mech, nspcs):
+    """Test automech.rename."""
     name_dct, missing_names = automech.rename_dict(mech0, name_mech)
     print(name_dct)
     print(missing_names)
@@ -161,6 +162,7 @@ def test__rename(mech0, name_mech, nspcs):
     [(MECH_BUTENE, MECH_NO_REACIONS, 6, 8)],
 )
 def test__expand_parent_stereo(par_mech, mech, rcount, scount):
+    """Test automech.expand_parent_stereo."""
     exp_mech, _ = automech.expand_stereo(mech)
     exp_par_mech = automech.expand_parent_stereo(mech=par_mech, sub_mech=exp_mech)
     print(exp_par_mech)
@@ -252,7 +254,7 @@ if __name__ == "__main__":
     # test__from_smiles()
     # test__expand_stereo(MECH_BUTENE, False, 4, 10, 1, 7, False)
     # test__expand_parent_stereo(MECH_BUTENE, MECH_NO_REACIONS, 6, 8)
-    # test__rename(MECH_BUTENE, MECH_BUTENE_ALTERNATIVE_NAMES, 4)
+    test__rename(MECH_BUTENE, MECH_BUTENE_ALTERNATIVE_NAMES, 4)
     # test__update_parent_reaction_data(MECH_BUTENE, MECH_BUTENE_SUBSET, 6, 9)
     # test__display(MECH_EMPTY, None, None)
     # test__network(MECH_EMPTY)
@@ -280,5 +282,5 @@ if __name__ == "__main__":
     #     },
     # )
     # test__drop_reactions_by_smiles(MECH_BUTENE, "CC=CC.[OH]>>C[CH]C(O)C", 2, 7)
-    test__expand_stereo(MECH_BUTENE_NO_REACTIONS, True, 0, 12, 0, 12, False)
-    test__expand_stereo(MECH_BUTENE_NO_REACTIONS, False, 0, 10, 0, 10, False)
+    # test__expand_stereo(MECH_BUTENE_NO_REACTIONS, True, 0, 12, 0, 12, False)
+    # test__expand_stereo(MECH_BUTENE_NO_REACTIONS, False, 0, 10, 0, 10, False)

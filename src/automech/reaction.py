@@ -5,14 +5,14 @@ import itertools
 from collections.abc import Mapping, Sequence
 from typing import Annotated
 
+import autochem as ac
 import automol
 import more_itertools as mit
 import polars
 import pydantic
-from pydantic_core import core_schema
-
-import autochem as ac
 from autochem.util import chemkin
+from pandera import polars as pa
+from pydantic_core import core_schema
 
 from . import species
 from .species import Species
@@ -27,7 +27,29 @@ class Reaction(Model):
 
     reactants: list[str]
     products: list[str]
-    formula: polars.Struct
+    formula: Annotated[
+        polars.Struct,
+        {
+            "H": polars.Int64,
+            "He": polars.Int64,
+            "Li": polars.Int64,
+            "Be": polars.Int64,
+            "B": polars.Int64,
+            "C": polars.Int64,
+            "N": polars.Int64,
+            "O": polars.Int64,
+            "F": polars.Int64,
+            "Ne": polars.Int64,
+            "Na": polars.Int64,
+            "Mg": polars.Int64,
+            "Al": polars.Int64,
+            "Si": polars.Int64,
+            "P": polars.Int64,
+            "S": polars.Int64,
+            "Cl": polars.Int64,
+            "Ar": polars.Int64,
+        },
+    ] = pa.Field(coerce=True)
 
 
 class ReactionRate(Model):
@@ -244,9 +266,9 @@ def difference(
     :return: Reaction DataFrame
     """
     key_col = c_.temp()
-    assert not (spc_df1 is None) ^ (
-        spc_df2 is None
-    ), "Requires species data for each reaction set."
+    assert not (spc_df1 is None) ^ (spc_df2 is None), (
+        "Requires species data for each reaction set."
+    )
     rxn_df1 = with_key(
         rxn_df1, col=key_col, spc_df=spc_df1, reversible=reversible, stereo=stereo
     )
@@ -634,7 +656,7 @@ def sanitize(
     :return: Reaction DataFrame and error DataFrame
     """
     # 1. Check for missing species errors
-    names = spc_df.get_column(Species.name)
+    names = spc_df.get_column(Species.name).implode()
     err_col = ReactionError.is_missing_species
     df = df.with_columns(
         polars.concat_list(Reaction.reactants, Reaction.products)

@@ -8,6 +8,7 @@ import autochem as ac
 import automol
 import polars
 import pydantic
+from pandera import polars as pa
 from pydantic_core import core_schema
 
 from .util import c_, df_, pandera_
@@ -44,7 +45,7 @@ class Species(Model):
             "Cl": polars.Int64,
             "Ar": polars.Int64,
         },
-    ]
+    ] = pa.Field(coerce=True)
 
 
 class SpeciesTherm(Model):

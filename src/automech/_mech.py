@@ -6,14 +6,13 @@ import textwrap
 from collections.abc import Callable, Collection, Mapping, Sequence
 from typing import TypeAlias
 
+import autochem as ac
 import automol
 import more_itertools as mit
 import polars
 import pydantic
 from automol.graph import enum
 from IPython.display import display as ipy_display
-
-import autochem as ac
 
 from . import net as net_
 from . import reaction, species
@@ -269,7 +268,7 @@ def network(mech: Mechanism) -> net_.Network:
     # Append species data to reagents dataframe
     names = spc_df[Species.name]
     datas = spc_df.to_struct()
-    expr = polars.element().replace_strict(names, datas)
+    expr = polars.element().replace_strict(names, datas, default=None)
     rgt_df = rgt_df.with_columns(
         polars.col(rgt_col).list.eval(expr).alias(net_.Key.species)
     )
@@ -423,7 +422,7 @@ def drop_reactions_by_smiles(
     tmp_col = c_.temp()
     mech = with_key(mech, col=tmp_col, stereo=stereo, reversible=True)
     drop_mech = with_key(drop_mech, col=tmp_col, stereo=stereo, reversible=True)
-    drop_keys = drop_mech.reactions.get_column(tmp_col)
+    drop_keys = drop_mech.reactions.get_column(tmp_col).implode()
     mech.reactions = mech.reactions.filter(~polars.col(tmp_col).is_in(drop_keys))
     mech.reactions = mech.reactions.drop(tmp_col)
     mech.species = mech.species.drop(tmp_col)
@@ -486,17 +485,23 @@ def _with_or_without_species(
     :param strict: Strictly include these species and no others?
     :return: Submechanism
     """
+    mech = mech.model_copy()
+
     # Build appropriate filtering expression
-    expr = (
-        polars.concat_list(Reaction.reactants, Reaction.products)
-        .list.eval(polars.element().is_in(spc_names))
-        .list
+    expr = polars.concat_list(Reaction.reactants, Reaction.products).list.eval(
+        polars.element().is_in(spc_names)
     )
-    expr = expr.all() if strict else expr.any()
+    expr = expr.list.all() if strict else expr.list.any()
     expr = expr.not_() if without else expr
 
-    mech = mech.model_copy()
-    mech.reactions = mech.reactions.filter(expr)
+    # Temporary workaround for bug https://github.com/pola-rs/polars/issues/23300:
+    # Should be able to just do mech.reactions.filter(expr)
+    tmp_col = c_.temp()
+    mech.reactions = (
+        mech.reactions.with_columns(expr.alias(tmp_col))
+        .filter(polars.col(tmp_col))
+        .drop(tmp_col)
+    )
     return without_unused_species(mech)
 
 
@@ -932,8 +937,19 @@ def expand_parent_stereo(mech: Mechanism, sub_mech: Mechanism) -> Mechanism:
         .list.eval(polars.element().is_in(list(exp_dct.keys())))
         .list.any()
     )
-    exp_rxn_df = mech.reactions.filter(needs_exp)
-    rem_rxn_df = mech.reactions.filter(~needs_exp)
+    # Temporary workaround for bug https://github.com/pola-rs/polars/issues/23300:
+    # Should be able to just do mech.reactions.filter(expr)
+    tmp_col = c_.temp()
+    exp_rxn_df = (
+        mech.reactions.with_columns(needs_exp.alias(tmp_col))
+        .filter(polars.col(tmp_col))
+        .drop(tmp_col)
+    )
+    rem_rxn_df = (
+        mech.reactions.with_columns((~needs_exp).alias(tmp_col))
+        .filter(polars.col(tmp_col))
+        .drop(tmp_col)
+    )
 
     #   b. Expand and dump to dictionary
     def exp_(rate: ac.rate.Reaction) -> list[dict[str, object]]:
