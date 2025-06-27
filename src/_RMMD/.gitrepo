@@ -1,0 +1,12 @@
+; DO NOT EDIT (unless you know what you are doing)
+;
+; This subdirectory is a git "subrepo", and this file is maintained by the
+; git-subrepo command. See https://github.com/ingydotnet/git-subrepo#readme
+;
+[subrepo]
+	remote = git@github.com:avcopan/RMMD.git
+	branch = main
+	commit = ee8932ef9e2e2c13b9b2ca7bbb817e00f8cdddba
+	parent = 23173cb217d96d55cc99bc7051a7cd394cbbe240
+	method = merge
+	cmdver = 0.4.9
