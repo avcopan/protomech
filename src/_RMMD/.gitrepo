@@ -6,7 +6,7 @@
 [subrepo]
 	remote = git@github.com:avcopan/RMMD.git
 	branch = main
-	commit = ee8932ef9e2e2c13b9b2ca7bbb817e00f8cdddba
-	parent = 23173cb217d96d55cc99bc7051a7cd394cbbe240
+	commit = dab1799f63d9c295a5e70567034422dd384a9814
+	parent = fd638a62dfb4be62628ad5cb28b7eabd680d8d4e
 	method = merge
 	cmdver = 0.4.9
