@@ -1,13 +1,18 @@
 [project]
 authors = [{name = "Andreas Copan", email = "avcopan@gmail.com"}]
-dependencies = []
 name = "protomech"
 requires-python = ">= 3.11"
 version = "0.1.0"
+dependencies = ["pyvis"]
 
 [build-system]
 build-backend = "hatchling.build"
 requires = ["hatchling"]
+
+[dependency-groups]
+test = ["pytest", "pytest-xdist[psutil]"]
+lint = ["ruff", "mypy", "pre-commit"]
+docs = ["sphinx", "myst-parser", "sphinx-book-theme", "sphinx-autodoc-typehints"]
 
 [tool.pixi.workspace]
 channels = ["conda-forge"]
@@ -17,3 +22,48 @@ platforms = ["linux-64"]
 protomech = { path = ".", editable = true }
 
 [tool.pixi.tasks]
+
+[tool.pixi.dependencies]
+# SPEC0 dependencies
+python = "3.12.*"
+numpy = "2.0.*"
+scipy = "1.14.*"
+networkx = "3.4.*"
+# Other dependencies
+altair-all = "*"
+more-itertools = "*"
+pandera = "*"
+pint = "*"
+polars = "*"
+pyarrow = "*"
+py3dmol = "*"
+pyparsing = "*"
+pydantic = "*"
+tqdm = "*"
+
+[tool.pixi.feature.sim.dependencies]
+cantera = "*"
+
+[tool.pixi.environments]
+test = ["test"]
+all = ["test", "lint", "docs", "sim"]
+
+# Ruff configurations
+[tool.ruff]
+target-version = "py311"
+extend-select = [
+    "E",      # style errors
+    "F",      # flakes
+    "D",      # pydocstyle
+    "I001",   # isort
+    "UP",     # pyupgrade
+    "N",      # pep8-naming
+    "C",      # flake8-comprehensions
+    "B",      # flake8-bugbear
+    "A001",   # flake8-builtins
+    "RUF",    # ruff-specific rules
+    "RUF100", # Unused noqa directive
+]
+extend-ignore = [
+    "RUF022", # Require __all__ to be sorted
+]

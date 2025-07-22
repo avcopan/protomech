@@ -209,3 +209,6 @@ __marimo__/
 # pixi environments
 .pixi
 *.egg-info
+
+# This project
+.automech/

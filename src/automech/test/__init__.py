@@ -1,0 +1,1 @@
+"""Test automech functions."""
