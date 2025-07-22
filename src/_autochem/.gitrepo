@@ -1,0 +1,12 @@
+; DO NOT EDIT (unless you know what you are doing)
+;
+; This subdirectory is a git "subrepo", and this file is maintained by the
+; git-subrepo command. See https://github.com/ingydotnet/git-subrepo#readme
+;
+[subrepo]
+	remote = git@github.com:avcopan/autochem.git
+	branch = dev
+	commit = 9683c2b83b0959c82f968bfcacb38cd8b8669f53
+	parent = 7816bf5fea80c38905c89912b6030dc8fd788d70
+	method = rebase
+	cmdver = 0.4.9
