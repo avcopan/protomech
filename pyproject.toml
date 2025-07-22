@@ -45,6 +45,7 @@ tqdm = "*"
 
 [tool.pixi.feature.sim.dependencies]
 cantera = "*"
+jupyter = "*"
 
 [tool.pixi.environments]
 test = ["test"]
