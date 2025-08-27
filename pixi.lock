@@ -3875,7 +3875,7 @@ packages:
 - pypi: ./
   name: protomech
   version: 0.1.0
-  sha256: 921d037ace8f2f7005f252b7814524a96d1bf301572677b160db1f43b96bbd37
+  sha256: 10aad836fc6b382a01f42885ad437b45f57faae9750295e7407e13c263a1d191
   requires_dist:
   - pyvis
   requires_python: '>=3.11'

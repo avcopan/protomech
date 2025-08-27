@@ -23,8 +23,9 @@ protomech = { path = ".", editable = true }
 autochem = { path = "src/_autochem", editable = true }
 RMMD = { path = "src/_RMMD", editable = true }
 
-[tool.pixi.tasks]
-lint = "lefthook run pre-commit --all-files"
+[tool.pixi.feature.lint.tasks]
+lint-autochem = { cmd = "./lint.sh", cwd = "src/_autochem" }
+lint = { cmd = "lefthook run pre-commit --all-files", depends-on = ["lint-autochem"] }
 
 [tool.pixi.dependencies]
 # SPEC0 dependencies
