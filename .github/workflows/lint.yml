@@ -1,0 +1,27 @@
+name: lint
+
+on: 
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+
+    steps:
+      # Repository
+      - name: Checkout the code
+        uses: actions/checkout@v4
+
+      # Environment
+      - name: Install environment with pixi
+        uses: prefix-dev/setup-pixi@v0.9.0
+        with:
+          environments: all
+
+      # Lint
+      - name: Lint
+        run: pixi run lint
