@@ -19,7 +19,7 @@ from automech.species import Species
 from automech.util import c_
 
 from . import p_, reactors
-from ._util import previous_tag, previous_tags
+from .util import previous_tag, previous_tags
 
 
 # Workflows

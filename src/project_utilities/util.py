@@ -7,16 +7,14 @@ import IPython
 
 def is_notebook() -> bool:
     """Check if this is a notebook."""
-    return IPython.get_ipython() is not None
+    return IPython.get_ipython() is not None  # pyright: ignore[reportPrivateImportUsage]
 
 
-def notebook_file() -> str | None:
+def notebook_file() -> str:
     """Get the notebook file path, if this is a notebook."""
-    ipy = IPython.get_ipython()
-    if ipy is None:
-        return None
-
-    return ipy.user_ns.get("__vsc_ipynb_file__")
+    ipy = IPython.get_ipython()  # pyright: ignore[reportPrivateImportUsage]
+    assert ipy is not None
+    return ipy.user_ns["__vsc_ipynb_file__"]
 
 
 # Tag functions
