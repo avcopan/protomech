@@ -20,8 +20,10 @@ from ._0core import xyz_string
 from ._0core import xyz_trajectory_string
 from ._0core import from_string
 from ._0core import from_xyz_string
+from ._0core import from_xyz_string_with_mode
 from ._0core import xyz_string_comment
 from ._0core import from_xyz_trajectory_string
+from ._0core import parse_xyz_block
 from ._0core import yaml_data
 from ._0core import from_yaml_data
 # # validation
@@ -72,6 +74,7 @@ from ._0core import move_atom
 from ._0core import swap_coordinates
 # # transformations
 from ._0core import round_
+from ._0core import displace
 from ._0core import translate
 from ._0core import translate_along_matrix
 from ._0core import perturb
@@ -80,6 +83,7 @@ from ._0core import transform
 from ._0core import transform_by_matrix
 from ._0core import reflect_coordinates
 from ._0core import shift_atom_position
+from ._0core import align_to_atoms
 # comparison functions
 # # properties used for comparisons
 from ._1comp import coulomb_spectrum
@@ -112,8 +116,10 @@ __all__ = [
     'xyz_trajectory_string',
     'from_string',
     'from_xyz_string',
+    'from_xyz_string_with_mode',
     'xyz_string_comment',
     'from_xyz_trajectory_string',
+    'parse_xyz_block',
     'yaml_data',
     'from_yaml_data',
     # # validation
@@ -164,6 +170,7 @@ __all__ = [
     'swap_coordinates',
     # # transformations
     'round_',
+    'displace',
     'translate',
     'translate_along_matrix',
     'perturb',
@@ -172,6 +179,7 @@ __all__ = [
     'transform_by_matrix',
     'reflect_coordinates',
     'shift_atom_position',
+    'align_to_atoms',
     # comparison functions
     # # properties used for comparisons
     'coulomb_spectrum',

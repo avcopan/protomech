@@ -1,5 +1,5 @@
 """
-    Core functions defining the geometry data type
+Core functions defining the geometry data type
 """
 
 import functools
@@ -21,10 +21,8 @@ AXIS_DCT = {"x": 0, "y": 1, "z": 2}
 
 CHAR = pp.Char(pp.alphas)
 SYMBOL = pp.Combine(CHAR + pp.Opt(CHAR))
-XYZ_LINE = pp.Group(
-    SYMBOL + pp.Group(ppc.fnumber * 3) + pp.Suppress(... + pp.LineEnd())
-)
-XYZ_LINES = pp.delimitedList(XYZ_LINE, delim=pp.LineStart())
+XYZ = ppc.fnumber * 3
+XYZ_LINE = SYMBOL("symb") + XYZ("xyz") + pp.Optional(XYZ)("mode_xyz")
 
 
 # # constructors
@@ -228,12 +226,7 @@ def from_string(geo_str, angstrom=True):
     :type angstrom: bool
     :rtype: automol geometry data structure
     """
-    rows = (pp.Suppress(...) + XYZ_LINES).parseString(geo_str).asList()
-
-    symbs, xyzs = zip(*rows) if rows else ([], [])
-
-    geo = from_data(symbs, xyzs, angstrom=angstrom)
-
+    geo, *_ = parse_xyz_block(geo_str, angstrom=angstrom)
     return geo
 
 
@@ -245,16 +238,20 @@ def from_xyz_string(xyz_str):
     :type xyz_str: str
     :rtype: automol geometry data structure
     """
-    lines = xyz_str.splitlines()
-    natms = int(lines.pop(0).strip())
-    lines.pop(0)
-
-    geo_str = "\n".join(lines)
-    geo = from_string(geo_str, angstrom=True)
-
-    assert natms == count(geo), f"XYZ string with inconsistent count: {xyz_str}"
-
+    geo, *_ = parse_xyz_block(xyz_str, angstrom=True)
     return geo
+
+
+def from_xyz_string_with_mode(xyz_str):
+    """Read a Cartesian molecular geometry from a string that matches the
+    format of a string of a standard .xyz file.
+
+    :param xyz_str: string obtained from reading the .xyz file
+    :type xyz_str: str
+    :rtype: automol geometry data structure
+    """
+    geo, _, mode = parse_xyz_block(xyz_str, angstrom=True)
+    return geo, mode
 
 
 def xyz_string_comment(xyz_str):
@@ -264,38 +261,69 @@ def xyz_string_comment(xyz_str):
     :type xyz_str: str
     :rtype: str
     """
-    return xyz_str.splitlines()[1].strip()
+    _, comment, _ = parse_xyz_block(xyz_str, angstrom=True)
+    return comment
 
 
-def from_xyz_trajectory_string(geo_str):
+def from_xyz_trajectory_string(geo_str: str):
     """Read a series of molecular geometries from a trajectory string.
 
     :param geo_str: string containing the geometry
     :type geo_str: str
     :rtype: (tuple(automol geometry data structure), tuple(str))
     """
+    geo_str = geo_str.strip()
 
-    def _blocks(lst, size):
-        """Split list into parts of size n"""
-        split_lst = []
-        for i in range(0, len(lst), size):
-            split_lst.append(lst[i : i + size])
-        return split_lst
+    natm_str, *_ = geo_str.splitlines()
+    natm = int(natm_str)
 
-    # Split the lines for iteration
-    # The else takes care of empty comment line
-    geo_lines = [line if line != "" else "  " for line in geo_str.splitlines()]
+    blocks = ["\n".join(b) for b in mit.chunked(geo_str.splitlines(), natm+2)]
+    geos = []
+    comments = []
+    for block in blocks:
+        geo, comment, *_ = parse_xyz_block(block, angstrom=True)
+        geos.append(geo)
+        comments.append(comment)
 
-    # Get the number of atoms used to partition the trajectory file
-    line1 = geo_lines[0].strip()
-    natoms = int(line1)
+    return list(zip(geos, comments, strict=True))
 
-    geoms, comments = tuple(), tuple()
-    for block in _blocks(geo_lines, natoms + 2):
-        comments += (block[1],)
-        geoms += (from_string("\n".join(block[2:])),)
 
-    return tuple(zip(geoms, comments))
+def parse_xyz_block(
+    xyz_block: str, *, angstrom: bool = True
+) -> tuple[object, str | None, numpy.ndarray | None]:
+    """Parse an XYZ block string.
+
+    :param xyz_block: XYZ block string
+    :param angstrom: Whether the units are angstroms
+    :return: Geometry, comment (if present), and mode (if present)
+    """
+    lines = xyz_block.strip().splitlines()
+
+    # If line 1 is an integer, this is a standard XYZ file
+    natm = None
+    comment = None
+    if lines[0].strip().isdigit():
+        natm_line, comment, *lines = lines
+        natm = int(natm_line)
+        lines = lines[:natm]
+
+    symbs = []
+    xyzs = []
+    mode = []
+    for line in lines:
+        res = XYZ_LINE.parse_string(line).as_dict()
+        if res:
+            symbs.append(res.get("symb"))
+            xyzs.append(res.get("xyz"))
+            mode.append(res.get("mode_xyz"))
+
+    if any(mode) and not all(mode):
+        msg = f"Invalid XYZ string with mode:\n{xyz_block}"
+        raise ValueError(msg)
+
+    geo = from_data(symbs, xyzs, angstrom=angstrom)
+    mode = numpy.array(mode) if all(mode) else None
+    return geo, comment, mode
 
 
 def yaml_data(geo) -> list:
@@ -1099,6 +1127,25 @@ def round_(geo, decimals=6):
     return from_data(symbs, xyzs)
 
 
+def displace(geo, disp_xyzs, angstrom=False):
+    """Displace a molecular geometry along a particular mode.
+
+    :param geo: molecular geometry
+    :type geo: automol molecular geometry data structure
+    :param disp_xyzs: Displacement coordinates
+    :param idxs: indices of atoms whose coordinates are to be translated
+    :type idxs: tuple(int)
+    :param angstrom: whether or not the translation is in angstrom
+    :type angstrom: bool
+    :rtype: automol molecular geometry data structure
+    """
+    disp_xyzs = numpy.reshape(disp_xyzs, (-1, 3))
+    symbs = symbols(geo)
+    xyzs = coordinates(geo, angstrom=angstrom)
+    xyzs = numpy.add(xyzs, disp_xyzs)
+    return from_data(symbs, xyzs, angstrom=angstrom)
+
+
 def translate(geo, xyz, idxs=None, angstrom=False):
     """Translate the coordinates of a molecular geometry along
     a three-dimensiona vector.
@@ -1293,3 +1340,57 @@ def shift_atom_position(geo, idx1, idx2):
     geo_move = tuple(tuple(x) for x in geo)
 
     return geo_move
+
+
+def align_to_atoms(geo, idxs: Sequence[int], oop_idxs: tuple[int, int] | None = None):
+    """Align geometry to a set of 3 atoms.
+
+    The geometry is aligned to 3 atoms specified by `idxs` as follows:
+        Origin: Position of atom 1
+        X axis: Unit vector along atom 1 -> atom 2
+        Y axis: Unit vector toward atom 1 -> atom 3, perpendicular to X
+        Z axis: Unit vector completing a right-handed coordinate system (X cross Y)
+
+    Optionally, one can specify an additional pair of atoms, `oop_idxs`, to
+    define the out-of-plane direction, reflecting the geometry if necessary. If
+    atom 1 -> atom 2 does not point out-of-plane (along the +Z Axis) for this
+    pair, then the geometry will be reflected through the XY plane so that it
+    does.
+
+    :param geo: Geometry
+    :param idxs: Indices of up to 3 atoms for alignment
+    :param oop_idxs: Indices of 2 atoms for reflection
+    :return: Geometry
+    """
+    if not 1 <= len(idxs) <= 4:
+        msg = f"Expected 1-4 indices, but got {len(idxs)}: {idxs}"
+        raise ValueError(msg)
+
+    # 0. Translate to origin
+    origin, *axes = map(numpy.array, coordinates(geo, idxs=idxs))
+    geo = translate(geo, -origin)
+    axes = [v - origin for v in axes]
+
+    # 1. Define x-axis from atom 1
+    x_axis = axes.pop(0) if axes else [1, 0, 0]
+    x_axis = util.vector.unit_norm(x_axis)
+
+    # 2. Define y-axis from atom 2
+    y_axis = axes.pop(0) if axes else util.vector.arbitrary_unit_perpendicular(x_axis)
+    y_axis = util.vector.orthogonalize(x_axis, y_axis, normalize=True)
+
+    # 3. Define z-axis from atom 3
+    z_axis = util.vector.unit_perpendicular(x_axis, y_axis)
+
+    # Transform into alignment
+    change_basis = numpy.column_stack((x_axis, y_axis, z_axis)).T
+    geo = transform_by_matrix(geo, mat=change_basis)
+
+    # If requested, reflect to match out-of-plane vector
+    if oop_idxs is not None:
+        pos1, pos2 = map(numpy.array, coordinates(geo, idxs=oop_idxs))
+        z_comp = numpy.vdot(pos2 - pos1, [0, 0, 1])
+        if z_comp < 0:
+            geo = reflect_coordinates(geo, axes=["z"])
+
+    return geo
