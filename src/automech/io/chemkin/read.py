@@ -3,14 +3,13 @@
 import itertools
 import re
 
+import autochem as ac
 import more_itertools as mit
 import polars
 import pyparsing as pp
-from pyparsing import common as ppc
-
-import autochem as ac
 from autochem import unit_
 from autochem.unit_ import Units
+from pyparsing import common as ppc
 
 from ... import reaction
 from ... import species as m_species

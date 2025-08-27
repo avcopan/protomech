@@ -401,7 +401,9 @@ def lookup_dict(
         return (
             True
             if key_ is None
-            else key_ in cols if isinstance(key_, str) else all(k in cols for k in key_)
+            else key_ in cols
+            if isinstance(key_, str)
+            else all(k in cols for k in key_)
         )
 
     def values_(key_):

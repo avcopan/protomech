@@ -220,7 +220,7 @@ def mess_input(surf: Surface) -> str:
     assert isinstance(mess_header, str)
     assert all(isinstance(b, str) for b in node_blocks)
     assert all(isinstance(b, str) for b in edge_blocks)
-    return "\n!\n".join([mess_header, *node_blocks, *edge_blocks]) # type: ignore
+    return "\n!\n".join([mess_header, *node_blocks, *edge_blocks])  # type: ignore
 
 
 # Helpers

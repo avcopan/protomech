@@ -8,7 +8,6 @@ import automol
 import more_itertools as mit
 import networkx
 import pyvis
-
 from autochem.util import chemkin
 
 from .reaction import Reaction

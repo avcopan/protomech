@@ -6,7 +6,6 @@ from pathlib import Path
 
 import automol
 import polars
-
 from autochem import rate, therm, unit_
 from autochem.unit_ import UNITS
 from autochem.util import chemkin
