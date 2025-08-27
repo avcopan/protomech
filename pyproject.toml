@@ -11,7 +11,7 @@ requires = ["hatchling"]
 
 [dependency-groups]
 test = ["pytest", "pytest-xdist[psutil]"]
-lint = ["ruff", "mypy", "pre-commit"]
+lint = ["ruff", "lefthook", "uv"]
 docs = ["sphinx", "myst-parser", "sphinx-book-theme", "sphinx-autodoc-typehints"]
 
 [tool.pixi.workspace]
@@ -24,6 +24,7 @@ autochem = { path = "src/_autochem", editable = true }
 RMMD = { path = "src/_RMMD", editable = true }
 
 [tool.pixi.tasks]
+lint = "lefthook run pre-commit --all-files"
 
 [tool.pixi.dependencies]
 # SPEC0 dependencies
@@ -54,19 +55,17 @@ all = ["test", "lint", "docs", "sim"]
 # Ruff configurations
 [tool.ruff]
 target-version = "py311"
-extend-select = [
-    "E",      # style errors
-    "F",      # flakes
-    "D",      # pydocstyle
-    "I001",   # isort
-    "UP",     # pyupgrade
-    "N",      # pep8-naming
-    "C",      # flake8-comprehensions
-    "B",      # flake8-bugbear
-    "A001",   # flake8-builtins
-    "RUF",    # ruff-specific rules
-    "RUF100", # Unused noqa directive
+output-format = "concise"
+fix = true
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "COM812",   # missing trailing comma (handled by format)
+    "RUF022",   # `__all__` is not sorted
+    "TID252",   # relative import
+    # resolve rule conflicts:
+    "D203",     # incorrect blank line before class (uses D211 instead)
+    "D213",     # multi-line summary second line (uses D212 instead)
 ]
-extend-ignore = [
-    "RUF022", # Require __all__ to be sorted
-]
+exclude = ["src/_*"]

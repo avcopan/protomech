@@ -1,0 +1,7 @@
+pre-commit:
+  parallel: true
+  commands:
+    ruff-lint:
+      run: ruff check --select I --fix
+    ruff-format:
+      run: ruff format
