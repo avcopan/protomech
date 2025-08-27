@@ -224,7 +224,7 @@ def thermo(
     return therm_df
 
 
-def thermo_block(inp: TextInput, comments: bool = True) -> str:
+def thermo_block(inp: TextInput, comments: bool = True) -> str | None:
     """Get the therm block, starting with 'THERM' and ending in 'END'.
 
     :param inp: A CHEMKIN mechanism, as a file path or string
@@ -315,12 +315,12 @@ def all_comments(inp: TextInput) -> list[str]:
     return re.findall(COMMENT_REGEX, inp)
 
 
-def therm_temperature_expression() -> pp.ParseExpression:
+def therm_temperature_expression() -> pp.ParserElement:
     """Generate a pyparsing expression for the therm block temperatures."""
     return pp.Suppress(... + pp.Opt(pp.CaselessKeyword("ALL"))) + pp.Opt(ppc.number * 3)
 
 
-def therm_entry_expression() -> pp.ParseExpression:
+def therm_entry_expression() -> pp.ParserElement:
     """Generate a pyparsing expression for a therm entry."""
     return pp.Combine(
         therm_line_expression(1)
@@ -330,8 +330,7 @@ def therm_entry_expression() -> pp.ParseExpression:
     )
 
 
-def therm_line_expression(num: int) -> pp.ParseExpression:
+def therm_line_expression(num: int) -> pp.ParserElement:
     """Generate a pyparsing expression for a therm line."""
-    num = pp.Literal(f"{num}")
-    end = pp.LineEnd()
-    return pp.AtLineStart(pp.Combine(pp.SkipTo(num + end, include=True)))
+    expr = pp.Literal(f"{num}") + pp.LineEnd()
+    return pp.AtLineStart(pp.Combine(pp.SkipTo(expr, include=True)))

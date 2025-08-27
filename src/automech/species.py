@@ -125,7 +125,7 @@ def amchis(
 
 def names(
     spc_df: polars.DataFrame, fml: str | dict[str, int] | None = None
-) -> polars.DataFrame:
+) -> list[str]:
     """Get species names.
 
     :param spc_df: Species DataFrame

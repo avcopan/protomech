@@ -66,7 +66,7 @@ def expand_stereo(
     tag: str,
     root_path: str | Path,
     enant: bool = True,
-) -> None:
+) -> tuple[Mechanism, Mechanism, Mechanism]:
     """Prepare mechanism for calculation.
 
     :param mech: Mechanism

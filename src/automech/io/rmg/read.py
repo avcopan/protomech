@@ -13,7 +13,7 @@ from tqdm.auto import tqdm
 from ... import species as m_species
 from ..._mech import Mechanism
 from ...species import Species
-from ...util import df_
+from ...util import df_, io_
 from ..chemkin import read as chemkin_read
 
 MULTIPLICITY = pp.CaselessLiteral("multiplicity") + ppc.integer("mult")
@@ -25,7 +25,10 @@ SPECIES_DICT = pp.OneOrMore(pp.Group(SPECIES_ENTRY))("dict")
 
 
 def mechanism(
-    rxn_inp: str, spc_inp: str, out: str | None = None, spc_out: str | None = None
+    rxn_inp: io_.TextInput,
+    spc_inp: io_.TextInput,
+    out: io_.TextOutput = None,
+    spc_out: io_.TextOutput = None,
 ) -> Mechanism:
     """Extract the mechanism from RMG files.
 
@@ -41,14 +44,14 @@ def mechanism(
     return Mechanism(reactions=rxn_df, species=spc_df)
 
 
-def species(inp: str, out: str | None = None) -> polars.DataFrame:
+def species(inp: io_.TextInput, out: str | None = None) -> polars.DataFrame:
     """Extract species information as a dataframe from an RMG species dictionary.
 
     :param inp: An RMG species dictionary, as a file path or string
     :param out: Optionally, write the output to this file path
     :return: The species dataframe
     """
-    inp = Path(inp).read_text() if os.path.exists(inp) else str(inp)
+    inp = io_.read_text(inp)
 
     spc_par_rets = SPECIES_DICT.parse_string(inp, parse_all=True).asDict()["dict"]
 
@@ -71,7 +74,7 @@ def species(inp: str, out: str | None = None) -> polars.DataFrame:
         Species.amchi: chis,
         Species.smiles: smis,
     }
-    spc_df = m_species.bootstrap(data)
+    spc_df = m_species.bootstrap(data)  # pyright: ignore[reportArgumentType]
     df_.to_csv(spc_df, out)
 
     return spc_df

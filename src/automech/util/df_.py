@@ -9,6 +9,7 @@ from polars import selectors as s_
 from tqdm.auto import tqdm
 
 from . import c_
+from .io_ import TextOutput
 
 Key = str
 Keys = Sequence[str]
@@ -30,7 +31,9 @@ def count(df: polars.DataFrame) -> int:
     return df.select(polars.len()).item()
 
 
-def dtype(df: polars.DataFrame, col_: str | Sequence[str]) -> str | list[str]:
+def dtype(
+    df: polars.DataFrame, col_: str | Sequence[str]
+) -> polars.DataType | list[polars.DataType]:
     """Get column(s) data type(s).
 
     :param df: DataFrame
@@ -50,7 +53,9 @@ def fields(df: polars.DataFrame, col: str) -> list[str]:
     :param col: Column
     :return: Fields
     """
-    return [f.name for f in df.schema[col].fields]
+    dtype = df.schema[col]
+    assert isinstance(dtype, polars.Struct)
+    return [f.name for f in dtype.fields]
 
 
 def values(
