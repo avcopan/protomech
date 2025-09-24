@@ -988,6 +988,7 @@ def enumerate_reactions(
     src_mech: Mechanism | None = None,
     repeat: int = 1,
     drop_self_rxns: bool = True,
+    match_src: bool = True,
 ) -> Mechanism:
     """Enumerate reactions for mechanism based on SMARTS reaction template.
 
@@ -1004,6 +1005,7 @@ def enumerate_reactions(
     :param src_mech: Optional source mechanism for species names and data
     :param repeat: Number of times to repeat the enumeration
     :param drop_self_rxns: Whether to drop self-reactions
+    :param match_src: Whether to match the direction and add data from the source mechanism
     :return: Mechanism with enumerated reactions
     """
     for _ in range(repeat):
@@ -1014,6 +1016,7 @@ def enumerate_reactions(
             spc_col_=spc_col_,
             src_mech=src_mech,
             excl_rcts=excl_rcts,
+            match_src=match_src,
         )
 
     if drop_self_rxns:
@@ -1064,7 +1067,7 @@ def _enumerate_reactions(
     spc_col_: str | Sequence[str] = Species.name,
     src_mech: Mechanism | None = None,
     skip_rxn_update: bool = False,
-    skip_rxn_left_update: bool = False,
+    match_src: bool = True,
 ) -> Mechanism:
     """Enumerate reactions for mechanism based on SMARTS reaction template.
 
@@ -1139,7 +1142,7 @@ def _enumerate_reactions(
         spc_df=mech.species,
     )
     mech.reactions = reaction.update(rxn_df, mech.reactions)
-    if not skip_rxn_left_update and src_mech is not None:
+    if match_src and src_mech is not None:
         mech.reactions = reaction.left_update(mech.reactions, src_mech.reactions)
     return drop_duplicate_reactions(mech)
 
@@ -1160,7 +1163,7 @@ def replace_unstable_products(
         uns_mech,
         enum.ReactionSmarts.qooh_instability,
         src_mech=src_mech,
-        skip_rxn_left_update=True,  # Do not align direction to source mechanism
+        match_src=True,  # Do not align direction to source mechanism
     )
 
     # Form dictionary mapping unstable products to stable ones
