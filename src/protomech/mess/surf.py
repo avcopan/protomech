@@ -204,7 +204,7 @@ def combine(surfs: Sequence[Surface]) -> Surface:
 
     all_edges = itertools.chain.from_iterable(surf.edges for surf in surfs)
     edges = []
-    for edge in all_edges:
+    for edge in mit.unique_everseen(all_edges, key=lambda e: e.label):
         edges.append(
             edge.model_copy(
                 update={"key": frozenset(map(key_dct.get, edge.well_labels))}

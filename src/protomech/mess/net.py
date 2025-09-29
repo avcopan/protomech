@@ -5,6 +5,8 @@ from pathlib import Path
 import automol
 import pyvis
 
+from automech import Mechanism, species, util
+
 from .surf import Surface
 
 
@@ -15,6 +17,7 @@ def display(
     out_dir: str | Path = ".pyvis",
     stereo: bool = True,
     open_browser: bool = True,
+    mech: Mechanism | None = None,
 ) -> None:
     """Display surface as a pyvis Network.
 
@@ -24,22 +27,31 @@ def display(
     out_dir = out_dir if isinstance(out_dir, Path) else Path(out_dir)
     out_dir.mkdir(exist_ok=True)
 
+    amchi_mapping = None
+    if mech is not None:
+        amchi_mapping = util.df_.lookup_dict(
+            mech.species, species.Species.name, species.Species.amchi
+        )
+
     vis_net = pyvis.network.Network(
         height=height, directed=False, notebook=True, cdn_resources="in_line"
     )
     for node in surf.nodes:
-        # if surf.amchi_mapping is None:
-        vis_net.add_node(node.label, label=node.label, title=str(node.label))
-    # else:
-    #     chi = automol.amchi.join(list(map(surf.amchi_mapping.get, node.names_list)))
-    #     image_path = _image_file_from_amchi(chi, out_dir=out_dir, stereo=stereo)
-    #     vis_net.add_node(
-    #         node.id,
-    #         label=node.label,
-    #         title=str(node.id),
-    #         shape="image",
-    #         image=image_path,
-    #     )
+        if amchi_mapping is None or node.fake:
+            vis_net.add_node(
+                node.label, label=node.label, title=str(node.label), size=10
+            )
+        else:
+            names = node.names_list
+            chi = automol.amchi.join(list(map(amchi_mapping.get, names)))
+            image_path = _image_file_from_amchi(chi, out_dir=out_dir, stereo=stereo)
+            vis_net.add_node(
+                node.label,
+                label=node.label,
+                title=str(node.label),
+                shape="image",
+                image=image_path,
+            )
     for edge in surf.edges:
         vis_net.add_edge(*edge.well_labels, title=edge.label)
 
