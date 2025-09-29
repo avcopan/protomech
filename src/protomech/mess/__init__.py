@@ -1,5 +1,5 @@
 """Highly experimental MESS wrapper."""
 
-from . import io, surf
+from . import io, net, surf
 
-__all__ = ["io", "surf"]
+__all__ = ["io", "net", "surf"]

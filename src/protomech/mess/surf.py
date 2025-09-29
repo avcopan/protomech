@@ -2,8 +2,9 @@ import itertools
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Self
 
+import more_itertools as mit
 import pydantic
 
 from . import io
@@ -82,7 +83,7 @@ class NmolNode(Node):
         if self.interacting:
             return f"Well  {self.label}\n{self.mess_body}\nEnd"
 
-        return f"Bimol  {self.label}\n{self.mess_body}\nEnd"
+        return f"Bimolecular  {self.label}\n{self.mess_body}\nEnd"
 
 
 class Edge(Feature):
@@ -185,6 +186,34 @@ def set_no_well_extension(surf: Surface, keys: Sequence[int]) -> Surface:
     return surf.model_copy(update={"nodes": nodes})
 
 
+# N-ary operations
+def combine(surfs: Sequence[Surface]) -> Surface:
+    """Combine multiple surfaces.
+
+    :param surfs: Surfaces
+    :return: Combined surface
+    """
+    mess_header = surfs[0].mess_header
+
+    key_dct = {}
+    all_nodes = itertools.chain.from_iterable(surf.nodes for surf in surfs)
+    nodes = []
+    for key, node in enumerate(mit.unique_everseen(all_nodes, key=lambda n: n.label)):
+        nodes.append(node.model_copy(update={"key": key}, deep=True))
+        key_dct[node.label] = key
+
+    all_edges = itertools.chain.from_iterable(surf.edges for surf in surfs)
+    edges = []
+    for edge in all_edges:
+        edges.append(
+            edge.model_copy(
+                update={"key": frozenset(map(key_dct.get, edge.well_labels))}
+            )
+        )
+
+    return Surface(nodes=nodes, edges=edges, mess_header=mess_header)
+
+
 # I/O
 def from_mess_input(mess_inp: str | Path) -> Surface:
     """Read surface from MESS input.
@@ -220,7 +249,7 @@ def mess_input(surf: Surface) -> str:
     assert isinstance(mess_header, str)
     assert all(isinstance(b, str) for b in node_blocks)
     assert all(isinstance(b, str) for b in edge_blocks)
-    return "\n!\n".join([mess_header, *node_blocks, *edge_blocks])  # type: ignore
+    return "\n!\n".join([mess_header, *node_blocks, *edge_blocks, "End", ""])  # type: ignore
 
 
 # Helpers

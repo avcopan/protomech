@@ -24,6 +24,16 @@ def chemkin(root_path: str | Path) -> Path:
     return data(root_path) / "chemkin"
 
 
+def mess(root_path: str | Path) -> Path:
+    """Determine mess path from root."""
+    return data(root_path) / "mess"
+
+
+def mess_source(root_path: str | Path) -> Path:
+    """Determine mess path from root."""
+    return data(root_path) / "mess" / "source"
+
+
 def cantera(root_path: str | Path) -> Path:
     """Determine cantera path from root."""
     return data(root_path) / "cantera"
