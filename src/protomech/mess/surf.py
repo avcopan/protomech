@@ -1,6 +1,6 @@
 import itertools
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from pathlib import Path
 from typing import Annotated, Literal, Self
 
@@ -92,8 +92,8 @@ class NmolNode(Node):
 
 
 class Edge(Feature):
-    key: Annotated[frozenset, pydantic.BeforeValidator(frozenset)] = pydantic.Field(
-        min_length=2, max_length=2
+    key: Annotated[frozenset[int], pydantic.BeforeValidator(frozenset)] = (
+        pydantic.Field(min_length=2, max_length=2)
     )
     name: str
     energy: float
@@ -151,6 +151,11 @@ class Surface(pydantic.BaseModel):
 
 
 # Properties
+def node_keys(surf: Surface) -> list[int]:
+    """Node keys for the surface."""
+    return [n.key for n in surf.nodes]
+
+
 def fake_well_keys(surf: Surface) -> list[int]:
     """Keys of fake wells in surface.
 
@@ -174,18 +179,54 @@ def node_object(surf: Surface, key: int) -> Node:
     return node
 
 
+def edge_object(surf: Surface, key: Collection[int]) -> Edge:
+    """Look up node object by key
+
+    :param surf: Surface
+    :param key: Key
+    :return: Node
+    """
+    key = key if isinstance(key, frozenset) else frozenset(key)
+    edge = next((e for e in surf.edges if e.key == key), None)
+    if edge is None:
+        msg = f"Key {key} is not associated with an edge:\n{surf.model_dump()}"
+        raise ValueError(msg)
+    return edge
+
+
+def node_neighbors(surf: Surface, key: int, skip_fake: bool = False) -> list[int]:
+    """Keys of neighboring nodes.
+
+    :param surf: Surface
+    :param key: Key
+    :param skip_fake: Whether to skip fake over fake neighbors and include the next neighbors
+    :return: Neighbor keys
+    """
+    gra = graph(surf)
+    nkeys = []
+    for nkey, ndata in gra[key].items():
+        if skip_fake and ndata["fake"]:
+            for skip_nkey in gra[nkey]:
+                if skip_nkey != key:
+                    nkeys.append(skip_nkey)
+        else:
+            nkeys.append(nkey)
+
+    return nkeys
+
+
 def node_key(surf: Surface, names: list[str], fake: bool = False) -> int | None:
     """Look up node key given names.
 
     :param surf: Surface
     :param names: Species names
-    :param fake: Whether this is a fake node
+    :param fake: Whether to look for a fake node
     :return: Node key
     """
     keys = [
         n.key
         for n in surf.nodes
-        if sorted(names) == sorted(n.names_list) and not n.fake
+        if sorted(names) == sorted(n.names_list) and not n.fake ^ fake
     ]
 
     if not keys:
@@ -197,6 +238,26 @@ def node_key(surf: Surface, names: list[str], fake: bool = False) -> int | None:
 
     (key,) = keys
     return key
+
+
+def node_keys_containing(
+    surf: Surface, name: str, nmol: bool = True, fake: bool = False
+) -> list[int]:
+    """Get list of node keys containing a species name.
+
+    :param surf: Surface
+    :param name: Name
+    :param nmol: Whether to look for n-molecular nodes with n>1
+    :param fake: Whether to look for fake nodes
+    :return: Node keys
+    """
+    return [
+        n.key
+        for n in surf.nodes
+        if name in n.names_list
+        and not (nmol and len(n.names_list) == 1)
+        and not (n.fake ^ fake)
+    ]
 
 
 def shortest_path(surf: Surface, key1: int, key2: int) -> list[int]:
@@ -241,8 +302,41 @@ def set_no_well_extension(surf: Surface, keys: Sequence[int]) -> Surface:
     return surf.model_copy(update={"nodes": nodes})
 
 
-def merge_resonant_instabilities(surf: Surface, mech: Mechanism) -> Surface:
-    """Merge resonant instabilities on a surface.
+def remove_nodes(surf: Surface, keys: list[int]) -> Surface:
+    """Remove nodes from surface, along with their associated edges.
+
+    :param surf: Surface
+    :param keys: Keys of nodes to remove
+    :return: Surface
+    """
+    nodes = [n for n in surf.nodes if n.key not in keys]
+    edges = [e for e in surf.edges if not e.key & set(keys)]
+    return Surface(nodes=nodes, edges=edges, mess_header=surf.mess_header)
+
+
+def extend(
+    surf: Surface, nodes: Collection[Node] = (), edges: Collection[Edge] = ()
+) -> Surface:
+    """Extend a surface by adding nodes and edges
+
+    :param surf: Surface
+    :param nodes: Nodes to add
+    :param edges: Edges to add
+    :return: Surface
+    """
+    nodes = [*surf.nodes, *nodes]
+    edges = [*surf.edges, *edges]
+    return Surface(nodes=nodes, edges=edges, mess_header=surf.mess_header)
+
+
+def merge_prompt_resonant_instabilities(surf: Surface, mech: Mechanism) -> Surface:
+    """Merge prompt resonant instabilities on a surface.
+
+    That is, resonant instabilities for a lower stoichiometry than the rest of
+    the surface. Example:
+
+        A -> B + C*
+        C* -(unstable)-> Y + Z
 
     :param surf: Surface
     :param mech: Mechanism
@@ -260,8 +354,96 @@ def merge_resonant_instabilities(surf: Surface, mech: Mechanism) -> Surface:
         if rct_key is not None and prd_key is not None:
             instab_path_dct[rct_name] = shortest_path(surf, rct_key, prd_key)
 
-    for instab_name, path in instab_path_dct.items():
-        print(instab_name, path)
+    for instab_name, instab_path in instab_path_dct.items():
+        rct_key, *_, prd_key = instab_path
+        # Iterate over n-molecular nodes containing the unstable spacies
+        nmol_keys = node_keys_containing(surf, instab_name)
+        for nmol_key in nmol_keys:
+            # Iterate over neighbors of these nodes, skipping fake wells
+            # These are the neighbors we want to connect to
+            conn_keys = node_neighbors(surf, nmol_key, skip_fake=True)
+            for conn_key in conn_keys:
+                # Get the path from the connection node to the n-molecular node
+                conn_node = node_object(surf, conn_key)
+                conn_path = shortest_path(surf, conn_key, nmol_key)
+                # Update n-molecular node to give unstable products
+                new_key = max(node_keys(surf)) + 1
+                new_node = instability_product_node(
+                    surf, nmol_key, rct_key, prd_key, new_key=new_key
+                )
+                new_edge_key = [conn_key, new_key]
+                new_edge_labels = [conn_node.label, new_node.label]
+                new_edge = edge_object(surf, conn_path[:2]).model_copy()
+                new_edge.key = frozenset(new_edge_key)
+                new_edge = edge_set_labels(new_edge, new_edge_key, new_edge_labels)
+                # Remove n-molecular node and fake well
+                surf = remove_nodes(surf, conn_path[1:])
+                surf = extend(surf, nodes=[new_node], edges=[new_edge])
+
+        surf = remove_nodes(surf, instab_path)
+
+    return surf
+
+
+# Create nodes
+def instability_product_node(
+    surf: Surface, key: int, rct_key: int, prd_key: int, new_key: int | None = None
+) -> NmolNode:
+    """Generate a new node describing the product of an unstable one.
+
+    :param surf: Surface
+    :param key: Node key
+    :param rct_key: Instability reactant key
+    :param prd_key: Instability product key
+    :return: Node
+    """
+    new_key = key if new_key is None else new_key
+    node0 = node_object(surf, key)
+    rct_node = node_object(surf, rct_key)
+    prd_node = node_object(surf, prd_key)
+
+    if not isinstance(rct_node, UnimolNode):
+        msg = f"Instability reactant must be a unimolecular node: {rct_node}"
+        raise ValueError(msg)
+
+    if isinstance(node0, NmolNode):
+        (rct_name,) = rct_node.names_list
+        prd_names = prd_node.names_list
+        prd_energy = prd_node.energy - rct_node.energy
+
+        node = node0.model_copy(deep=True)
+        node.names.remove(rct_name)
+        node.names = sorted([*node.names, *prd_names])
+        node.energy += prd_energy
+        node.mess_body = f"  ! ZeroEnergy[kcal/mol]      {node.energy:.2f}\n  Dummy"
+        node.key = new_key
+
+    else:
+        msg = "Not yet implemented"
+        raise NotImplementedError(msg)
+
+    return node
+
+
+def edge_set_labels(
+    edge: Edge, key: Collection[int], well_labels: Sequence[str]
+) -> Edge:
+    """Set labels for an edge.
+
+    :param edge: Edge
+    :param key: Edge key, as sorted or unsorted pair of node keys
+    :param well_labels: Labels in the order of key (if Sequence) or in the
+        sorted order of key (if unordered Collection)
+    :return: Edge
+    """
+    key = key if isinstance(int, Sequence) else sorted(key)
+    if not len(key) == len(well_labels) == 2:
+        msg = f"The key and labels for an edge must have length 2:\nkey={key}\nlabels={well_labels}"
+        raise ValueError(msg)
+
+    _, labels = zip(*sorted(zip(key, well_labels, strict=True)))
+    edge.well_labels = tuple(labels)
+    return edge
 
 
 # N-ary operations

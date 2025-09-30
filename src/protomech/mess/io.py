@@ -113,7 +113,7 @@ def _parse_block(block: str) -> MessBlockParseData:
 
     # Parse energy
     expr = ... + (
-        GROUND_ENERGY | ZERO_ENERGY
+        GROUND_ENERGY
         if (type == "Bimolecular" and "Dummy" not in body)
         else ZERO_ENERGY
     )
