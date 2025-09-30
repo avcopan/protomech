@@ -194,15 +194,32 @@ def species_names(
     return spc_names
 
 
+def resonant_unstable_species_names(mech: Mechanism) -> list[str]:
+    """Get names of unstable species in mechanism.
+
+    :param mech: Mechanism
+    :return: Species names
+    """
+    tmp_col = c_.temp()
+    spc_df = species.with_group_matches(
+        mech.species, enum.GroupSmarts.resonant_qooh_instability, col=tmp_col
+    )
+    spc_df = spc_df.filter(tmp_col).drop(tmp_col)
+    return species.names(spc_df)
+
+
 def unstable_species_names(mech: Mechanism) -> list[str]:
     """Get names of unstable species in mechanism.
 
     :param mech: Mechanism
     :return: Species names
     """
-    instab_mech = without_reactions(mech)
-    instab_mech = enumerate_reactions(instab_mech, enum.ReactionSmarts.qooh_instability)
-    return reaction.reactant_names(instab_mech.reactions)
+    tmp_col = c_.temp()
+    spc_df = species.with_group_matches(
+        mech.species, enum.GroupSmarts.qooh_instability, col=tmp_col
+    )
+    spc_df = spc_df.filter(tmp_col).drop(tmp_col)
+    return species.names(spc_df)
 
 
 def rename_dict(mech1: Mechanism, mech2: Mechanism) -> tuple[dict[str, str], list[str]]:

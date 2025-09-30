@@ -30,6 +30,7 @@ from ._mech import (
     rename,
     rename_dict,
     replace_unstable_products,
+    resonant_unstable_species_names,
     species_count,
     species_difference,
     species_names,

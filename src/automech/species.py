@@ -218,11 +218,11 @@ def with_key(
 
 
 def with_therm_objects(spc_df: polars.DataFrame, col: str) -> polars.DataFrame:
-    """Get reaction rate objects as a list.
+    """Get species with therm objects.
 
     :param spc_df: Species DataFrame
     :param col: Column
-    :return: Rate objects
+    :return: Species dataframe
     """
     cols = [
         Species.name,
@@ -233,6 +233,24 @@ def with_therm_objects(spc_df: polars.DataFrame, col: str) -> polars.DataFrame:
         .map_elements(ac.therm.Species.model_validate, return_dtype=polars.Object)
         .alias(col)
     )
+
+
+def with_group_matches(
+    spc_df: polars.DataFrame, smarts: str, col: str
+) -> polars.DataFrame:
+    """Get a SMARTS group match column.
+
+    :param spc_df: Species DataFrame
+    :param col: Column
+    :return: Species dataframe
+    """
+
+    def _matches(chi):
+        """Find group matches for AMChI."""
+        gra = automol.amchi.graph(chi, stereo=False)
+        return automol.graph.enum.has_group_match(smarts, gra)
+
+    return df_.map_(spc_df, Species.amchi, col, _matches, dtype_=polars.Boolean())
 
 
 # add/remove rows
