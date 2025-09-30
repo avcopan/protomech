@@ -55,7 +55,7 @@ class UnimolNode(Node):
     @property
     def mess_block(self) -> str | None:
         """MESS block."""
-        return f"Well  {self.label}\n{self.mess_body}\nEnd"
+        return f"Well  {self.label}\n{self.mess_body}"
 
 
 class NmolNode(Node):
@@ -81,9 +81,9 @@ class NmolNode(Node):
     def mess_block(self) -> str | None:
         """MESS block."""
         if self.interacting:
-            return f"Well  {self.label}\n{self.mess_body}\nEnd"
+            return f"Well  {self.label}\n{self.mess_body}"
 
-        return f"Bimolecular  {self.label}\n{self.mess_body}\nEnd"
+        return f"Bimolecular  {self.label}\n{self.mess_body}"
 
 
 class Edge(Feature):
@@ -105,9 +105,7 @@ class Edge(Feature):
         """MESS block."""
         assert self.well_labels is not None, self
         well_label1, well_label2 = self.well_labels
-        return (
-            f"Barrier  {self.label} {well_label1} {well_label2}\n{self.mess_body}\nEnd"
-        )
+        return f"Barrier  {self.label} {well_label1} {well_label2}\n{self.mess_body}"
 
 
 class Surface(pydantic.BaseModel):
@@ -230,7 +228,7 @@ def from_mess_input(mess_inp: str | Path) -> Surface:
     edge_block_data = [d for d in block_data if d.type == "Barrier"]
 
     # Instantiate nodes and edges
-    key_dct = {d.label: i for i, d in enumerate(node_block_data)}
+    key_dct = {d.header: i for i, d in enumerate(node_block_data)}
     nodes = [node_from_mess_block_parse_data(d, key_dct) for d in node_block_data]
     edges = [edge_from_mess_block_parse_data(d, key_dct) for d in edge_block_data]
 
@@ -265,13 +263,13 @@ def node_from_mess_block_parse_data(
     if block_data.type == "Barrier":
         raise ValueError("Cannot create well object from barrier block.")
 
-    assert block_data.label in key_dct, f"{block_data.label} not in {key_dct}"
-    key = key_dct[block_data.label]
+    assert block_data.header in key_dct, f"{block_data.header} not in {key_dct}"
+    key = key_dct[block_data.header]
     energy = block_data.energy
     block_body = block_data.body
 
     if block_data.type == "Bimolecular":
-        names = block_data.label.split("+")
+        names = block_data.header.split("+")
         return NmolNode(
             key=key,
             energy=energy,
@@ -281,8 +279,8 @@ def node_from_mess_block_parse_data(
             mess_body=block_body,
         )
 
-    if block_data.label.startswith("FakeW-"):
-        names = block_data.label.removeprefix("FakeW-").split("+")
+    if block_data.header.startswith("FakeW-"):
+        names = block_data.header.removeprefix("FakeW-").split("+")
         return NmolNode(
             key=key,
             energy=energy,
@@ -294,7 +292,7 @@ def node_from_mess_block_parse_data(
 
     assert block_data.type == "Well"
     return UnimolNode(
-        key=key, energy=energy, name=block_data.label, mess_body=block_body
+        key=key, energy=energy, name=block_data.header, mess_body=block_body
     )
 
 
@@ -310,7 +308,7 @@ def edge_from_mess_block_parse_data(
     if not block_data.type == "Barrier":
         raise ValueError("Cannot create barrier object from non-barrier block.")
 
-    name, *well_labels = block_data.label.split()
+    name, *well_labels = block_data.header.split()
     fake = name.startswith("FakeB-")
     assert all(label in key_dct for label in well_labels), (
         f"{well_labels} not in {key_dct}"
