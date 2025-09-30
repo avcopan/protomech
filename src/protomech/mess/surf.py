@@ -130,7 +130,7 @@ class Surface(pydantic.BaseModel):
 
         # Validate edge keys
         ekeys = [e.key for e in self.edges]
-        if not set(itertools.chain.from_iterable(ekeys)) == set(nkeys):
+        if not set(itertools.chain.from_iterable(ekeys)) <= set(nkeys):
             raise ValueError(f"Edge keys {ekeys} do not match node keys {nkeys}")
 
         return self
@@ -314,6 +314,18 @@ def remove_nodes(surf: Surface, keys: list[int]) -> Surface:
     return Surface(nodes=nodes, edges=edges, mess_header=surf.mess_header)
 
 
+def remove_edges(surf: Surface, keys: list[Collection[int]]) -> Surface:
+    """Remove edges from surface.
+
+    :param surf: Surface
+    :param keys: Keys of edges to remove
+    :return: Surface
+    """
+    keys = list(map(frozenset, keys))
+    edges = [e for e in surf.edges if e.key not in keys]
+    return Surface(nodes=surf.nodes, edges=edges, mess_header=surf.mess_header)
+
+
 def extend(
     surf: Surface, nodes: Collection[Node] = (), edges: Collection[Edge] = ()
 ) -> Surface:
@@ -329,14 +341,20 @@ def extend(
     return Surface(nodes=nodes, edges=edges, mess_header=surf.mess_header)
 
 
-def merge_prompt_resonant_instabilities(surf: Surface, mech: Mechanism) -> Surface:
-    """Merge prompt resonant instabilities on a surface.
+def merge_resonant_instabilities(surf: Surface, mech: Mechanism) -> Surface:
+    """Merge resonant instabilities.
 
-    That is, resonant instabilities for a lower stoichiometry than the rest of
-    the surface. Example:
+    Two cases:
 
-        A -> B + C*
-        C* -(unstable)-> Y + Z
+    1. Unimolecular instabilities (same PES):
+
+        A -> B*
+        B* -> Y + Z
+
+    2. N-molecular instabilities (different PESs, prompt-like):
+
+        A -> B* + C
+        B* -> Y + Z
 
     :param surf: Surface
     :param mech: Mechanism
@@ -356,20 +374,38 @@ def merge_prompt_resonant_instabilities(surf: Surface, mech: Mechanism) -> Surfa
 
     for instab_name, instab_path in instab_path_dct.items():
         rct_key, *_, prd_key = instab_path
-        # Iterate over n-molecular nodes containing the unstable spacies
-        nmol_keys = node_keys_containing(surf, instab_name)
-        for nmol_key in nmol_keys:
+
+        # 1. For unimolecular instability:
+        #   - Iterate over node neighbors not along the instability path
+        case1_nkeys = set(node_neighbors(surf, rct_key)) - set(instab_path)
+        for conn_key1 in case1_nkeys:
+            conn_key2 = instab_path[1]
+            conn_node1 = node_object(surf, conn_key1)
+            conn_node2 = node_object(surf, conn_key2)
+            old_edge_key = [conn_key1, rct_key]
+            new_edge_key = [conn_key1, conn_key2]
+            new_edge_labels = [conn_node1.label, conn_node2.label]
+            new_edge = edge_object(surf, old_edge_key).model_copy()
+            new_edge.key = frozenset(new_edge_key)
+            new_edge = edge_set_labels(new_edge, new_edge_key, new_edge_labels)
+            surf = remove_edges(surf, [old_edge_key])
+            surf = extend(surf, edges=[new_edge])
+
+        # 2. For n-molecular instability:
+        #   - Iterate over n-molecular nodes containing the unstable spacies
+        case2_keys = node_keys_containing(surf, instab_name)
+        for key in case2_keys:
             # Iterate over neighbors of these nodes, skipping fake wells
             # These are the neighbors we want to connect to
-            conn_keys = node_neighbors(surf, nmol_key, skip_fake=True)
+            conn_keys = node_neighbors(surf, key, skip_fake=True)
             for conn_key in conn_keys:
                 # Get the path from the connection node to the n-molecular node
                 conn_node = node_object(surf, conn_key)
-                conn_path = shortest_path(surf, conn_key, nmol_key)
+                conn_path = shortest_path(surf, conn_key, key)
                 # Update n-molecular node to give unstable products
                 new_key = max(node_keys(surf)) + 1
                 new_node = instability_product_node(
-                    surf, nmol_key, rct_key, prd_key, new_key=new_key
+                    surf, key, rct_key, prd_key, new_key=new_key
                 )
                 new_edge_key = [conn_key, new_key]
                 new_edge_labels = [conn_node.label, new_node.label]
@@ -380,7 +416,11 @@ def merge_prompt_resonant_instabilities(surf: Surface, mech: Mechanism) -> Surfa
                 surf = remove_nodes(surf, conn_path[1:])
                 surf = extend(surf, nodes=[new_node], edges=[new_edge])
 
-        surf = remove_nodes(surf, instab_path)
+        # Don't remove the whole path in the unimolecular case
+        if case1_nkeys:
+            surf = remove_nodes(surf, [rct_key])
+        else:
+            surf = remove_nodes(surf, instab_path)
 
     return surf
 
