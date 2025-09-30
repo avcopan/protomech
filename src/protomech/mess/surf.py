@@ -5,7 +5,12 @@ from pathlib import Path
 from typing import Annotated, Literal, Self
 
 import more_itertools as mit
+import networkx as nx
 import pydantic
+
+import automech
+from automech import Mechanism
+from automech.reaction import Reaction
 
 from . import io
 
@@ -155,6 +160,58 @@ def fake_well_keys(surf: Surface) -> list[int]:
     return [n.key for n in surf.nodes if n.fake]
 
 
+def node_object(surf: Surface, key: int) -> Node:
+    """Look up node object by key
+
+    :param surf: Surface
+    :param key: Key
+    :return: Node
+    """
+    node = next((n for n in surf.nodes if n.key == key), None)
+    if node is None:
+        msg = f"Key {key} is not associated with a node:\n{surf.model_dump()}"
+        raise ValueError(msg)
+    return node
+
+
+def node_key(surf: Surface, names: list[str], fake: bool = False) -> int | None:
+    """Look up node key given names.
+
+    :param surf: Surface
+    :param names: Species names
+    :param fake: Whether this is a fake node
+    :return: Node key
+    """
+    keys = [
+        n.key
+        for n in surf.nodes
+        if sorted(names) == sorted(n.names_list) and not n.fake
+    ]
+
+    if not keys:
+        return None
+
+    if len(keys) > 1:
+        msg = f"Multiple nodes found with names {names}: {keys}"
+        raise ValueError(msg)
+
+    (key,) = keys
+    return key
+
+
+def shortest_path(surf: Surface, key1: int, key2: int) -> list[int]:
+    """Get the shortest path between two nodes.
+
+    :param surf: Surface
+    :param key1: Node 1 key
+    :param key2: Node 2 key
+    :raises ValueError: If node key is not in the surface
+    :return: Node keys for path
+    """
+    gra = graph(surf)
+    return nx.shortest_path(gra, source=key1, target=key2)
+
+
 # Transformations
 def set_no_fake_well_extension(surf: Surface) -> Surface:
     """Turn off well extension for fake wells.
@@ -184,6 +241,29 @@ def set_no_well_extension(surf: Surface, keys: Sequence[int]) -> Surface:
     return surf.model_copy(update={"nodes": nodes})
 
 
+def merge_resonant_instabilities(surf: Surface, mech: Mechanism) -> Surface:
+    """Merge resonant instabilities on a surface.
+
+    :param surf: Surface
+    :param mech: Mechanism
+    :return: Surface
+    """
+    rxn_df = automech.resonant_instability_reactions(mech)
+    instab_rxns = rxn_df.reactions.select(
+        [Reaction.reactants, Reaction.products]
+    ).rows()
+
+    instab_path_dct: dict[str, list[int]] = {}
+    for (rct_name,), prd_names in instab_rxns:
+        rct_key = node_key(surf, [rct_name])
+        prd_key = node_key(surf, prd_names)
+        if rct_key is not None and prd_key is not None:
+            instab_path_dct[rct_name] = shortest_path(surf, rct_key, prd_key)
+
+    for instab_name, path in instab_path_dct.items():
+        print(instab_name, path)
+
+
 # N-ary operations
 def combine(surfs: Sequence[Surface]) -> Surface:
     """Combine multiple surfaces.
@@ -210,6 +290,17 @@ def combine(surfs: Sequence[Surface]) -> Surface:
         )
 
     return Surface(nodes=nodes, edges=edges, mess_header=mess_header)
+
+
+# Conversions
+def graph(surf: Surface) -> nx.Graph:
+    """Convert to a networkx Graph."""
+    gra = nx.Graph()
+    for node in surf.nodes:
+        gra.add_node(node.key, **node.model_dump())
+    for edge in surf.edges:
+        gra.add_edge(*edge.key, **edge.model_dump())
+    return gra
 
 
 # I/O

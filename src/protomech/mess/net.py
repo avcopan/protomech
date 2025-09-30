@@ -38,9 +38,7 @@ def display(
     )
     for node in surf.nodes:
         if amchi_mapping is None or node.fake:
-            vis_net.add_node(
-                node.label, label=node.label, title=str(node.label), size=10
-            )
+            vis_net.add_node(node.label, label=node.label, title=str(node.key), size=10)
         else:
             names = node.names_list
             chi = automol.amchi.join(list(map(amchi_mapping.get, names)))
@@ -48,12 +46,12 @@ def display(
             vis_net.add_node(
                 node.label,
                 label=node.label,
-                title=str(node.label),
+                title=str(node.key),
                 shape="image",
                 image=image_path,
             )
     for edge in surf.edges:
-        vis_net.add_edge(*edge.well_labels, title=edge.label)
+        vis_net.add_edge(*edge.well_labels, title=str(sorted(edge.key)))
 
     # Generate the HTML file
     vis_net.write_html(str(out_dir / out_name), open_browser=open_browser)

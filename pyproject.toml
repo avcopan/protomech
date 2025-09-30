@@ -49,6 +49,7 @@ tqdm = "*"
 cantera = "*"
 jupyter = "*"
 mess-static = "*"
+matplotlib = ">=3.10.6,<4"
 
 [tool.pixi.environments]
 test = ["test"]

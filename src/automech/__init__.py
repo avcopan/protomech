@@ -37,6 +37,7 @@ from ._mech import (
     species_count,
     species_difference,
     species_names,
+    strict_unstable_species_names,
     string,
     unstable_species_names,
     update,
@@ -68,6 +69,7 @@ __all__ = [
     "rename_dict",
     "network",
     "resonant_instability_reactions",
+    "strict_unstable_species_names",
     "resonant_unstable_species_names",
     # add/remove reactions
     "drop_duplicate_reactions",

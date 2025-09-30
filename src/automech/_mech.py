@@ -3,6 +3,7 @@
 import functools
 import itertools
 import textwrap
+import warnings
 from collections.abc import Callable, Collection, Mapping, Sequence
 from typing import TypeAlias
 
@@ -206,6 +207,17 @@ def resonant_unstable_species_names(mech: Mechanism) -> list[str]:
     )
     spc_df = spc_df.filter(tmp_col).drop(tmp_col)
     return species.names(spc_df)
+
+
+def strict_unstable_species_names(mech: Mechanism) -> list[str]:
+    """Get names of unstable species in mechanism.
+
+    :param mech: Mechanism
+    :return: Species names
+    """
+    res_instab_names = resonant_unstable_species_names(mech)
+    all_instab_names = unstable_species_names(mech)
+    return sorted(set(all_instab_names) - set(res_instab_names))
 
 
 def unstable_species_names(mech: Mechanism) -> list[str]:
@@ -1254,12 +1266,17 @@ def replace_unstable_products(
 
     # Enumerate instability reactions
     uns_mech = without_reactions(mech)
-    uns_mech = _enumerate_reactions(
-        uns_mech,
-        enum.ReactionSmarts.qooh_instability,
-        src_mech=src_mech,
-        match_src=True,  # Do not align direction to source mechanism
-    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)  # Ignore UserWarning specifically
+        uns_mech = _enumerate_reactions(
+            uns_mech,
+            enum.ReactionSmarts.qooh_instability,
+            excl_rcts=resonant_unstable_species_names(mech),
+            src_mech=src_mech,
+            match_src=True,  # Do not align direction to source mechanism
+        )
+
+    warnings.warn("This function ignores stereochemistry.", stacklevel=1)
 
     # Form dictionary mapping unstable products to stable ones
     name_col = c_.temp()
