@@ -165,7 +165,7 @@ def fake_well_keys(surf: Surface) -> list[int]:
     return [n.key for n in surf.nodes if n.fake]
 
 
-def node_object(surf: Surface, key: int) -> Node:
+def node_object(surf: Surface, key: int, copy: bool = False) -> Node:
     """Look up node object by key
 
     :param surf: Surface
@@ -176,10 +176,10 @@ def node_object(surf: Surface, key: int) -> Node:
     if node is None:
         msg = f"Key {key} is not associated with a node:\n{surf.model_dump()}"
         raise ValueError(msg)
-    return node
+    return node.model_copy() if copy else node
 
 
-def edge_object(surf: Surface, key: Collection[int]) -> Edge:
+def edge_object(surf: Surface, key: Collection[int], copy: bool = False) -> Edge:
     """Look up node object by key
 
     :param surf: Surface
@@ -191,7 +191,7 @@ def edge_object(surf: Surface, key: Collection[int]) -> Edge:
     if edge is None:
         msg = f"Key {key} is not associated with an edge:\n{surf.model_dump()}"
         raise ValueError(msg)
-    return edge
+    return edge.model_copy() if copy else edge
 
 
 def node_neighbors(surf: Surface, key: int, skip_fake: bool = False) -> list[int]:
@@ -302,7 +302,7 @@ def set_no_well_extension(surf: Surface, keys: Sequence[int]) -> Surface:
     return surf.model_copy(update={"nodes": nodes})
 
 
-def remove_nodes(surf: Surface, keys: list[int]) -> Surface:
+def remove_nodes(surf: Surface, keys: Collection[int]) -> Surface:
     """Remove nodes from surface, along with their associated edges.
 
     :param surf: Surface
@@ -314,7 +314,7 @@ def remove_nodes(surf: Surface, keys: list[int]) -> Surface:
     return Surface(nodes=nodes, edges=edges, mess_header=surf.mess_header)
 
 
-def remove_edges(surf: Surface, keys: list[Collection[int]]) -> Surface:
+def remove_edges(surf: Surface, keys: Collection[Collection[int]]) -> Surface:
     """Remove edges from surface.
 
     :param surf: Surface
@@ -372,6 +372,8 @@ def merge_resonant_instabilities(surf: Surface, mech: Mechanism) -> Surface:
         if rct_key is not None and prd_key is not None:
             instab_path_dct[rct_name] = shortest_path(surf, rct_key, prd_key)
 
+    drop_keys = set()
+    keep_keys = set()
     for instab_name, instab_path in instab_path_dct.items():
         rct_key, *_, prd_key = instab_path
 
@@ -385,43 +387,41 @@ def merge_resonant_instabilities(surf: Surface, mech: Mechanism) -> Surface:
             old_edge_key = [conn_key1, rct_key]
             new_edge_key = [conn_key1, conn_key2]
             new_edge_labels = [conn_node1.label, conn_node2.label]
-            new_edge = edge_object(surf, old_edge_key).model_copy()
+            new_edge = edge_object(surf, old_edge_key, copy=True)
             new_edge.key = frozenset(new_edge_key)
             new_edge = edge_set_labels(new_edge, new_edge_key, new_edge_labels)
             surf = remove_edges(surf, [old_edge_key])
             surf = extend(surf, edges=[new_edge])
+            drop_keys.add(rct_key)
+            keep_keys.update(instab_path[1:])
 
         # 2. For n-molecular instability:
         #   - Iterate over n-molecular nodes containing the unstable spacies
         case2_keys = node_keys_containing(surf, instab_name)
-        for key in case2_keys:
+        for instab_key in case2_keys:
             # Iterate over neighbors of these nodes, skipping fake wells
             # These are the neighbors we want to connect to
-            conn_keys = node_neighbors(surf, key, skip_fake=True)
+            conn_keys = node_neighbors(surf, instab_key, skip_fake=True)
             for conn_key in conn_keys:
                 # Get the path from the connection node to the n-molecular node
                 conn_node = node_object(surf, conn_key)
-                conn_path = shortest_path(surf, conn_key, key)
+                conn_path = shortest_path(surf, conn_key, instab_key)
                 # Update n-molecular node to give unstable products
                 new_key = max(node_keys(surf)) + 1
                 new_node = instability_product_node(
-                    surf, key, rct_key, prd_key, new_key=new_key
+                    surf, instab_key, rct_key, prd_key, new_key=new_key
                 )
                 new_edge_key = [conn_key, new_key]
                 new_edge_labels = [conn_node.label, new_node.label]
-                new_edge = edge_object(surf, conn_path[:2]).model_copy()
+                new_edge = edge_object(surf, conn_path[:2], copy=True)
                 new_edge.key = frozenset(new_edge_key)
                 new_edge = edge_set_labels(new_edge, new_edge_key, new_edge_labels)
                 # Remove n-molecular node and fake well
-                surf = remove_nodes(surf, conn_path[1:])
                 surf = extend(surf, nodes=[new_node], edges=[new_edge])
+                drop_keys.update(conn_path[1:])
+                drop_keys.update(instab_path)
 
-        # Don't remove the whole path in the unimolecular case
-        if case1_nkeys:
-            surf = remove_nodes(surf, [rct_key])
-        else:
-            surf = remove_nodes(surf, instab_path)
-
+    surf = remove_nodes(surf, drop_keys - keep_keys)
     return surf
 
 

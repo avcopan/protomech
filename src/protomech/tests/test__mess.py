@@ -61,5 +61,5 @@ def test__unimol_instability():
 
 if __name__ == "__main__":
     # test__from_mess_input("cyclopentene-ho2-addition.inp")
-    test__prompt_instability()
-    # test__unimol_instability()
+    # test__prompt_instability()
+    test__unimol_instability()
