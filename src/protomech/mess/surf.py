@@ -372,14 +372,15 @@ def merge_resonant_instabilities(surf: Surface, mech: Mechanism) -> Surface:
         if rct_key is not None and prd_key is not None:
             instab_path_dct[rct_name] = shortest_path(surf, rct_key, prd_key)
 
-    drop_keys = set()
+    all_instab_path_keys = set(itertools.chain.from_iterable(instab_path_dct.values()))
+    drop_keys = all_instab_path_keys.copy()
     keep_keys = set()
     for instab_name, instab_path in instab_path_dct.items():
         rct_key, *_, prd_key = instab_path
 
         # 1. For unimolecular instability:
         #   - Iterate over node neighbors not along the instability path
-        case1_nkeys = set(node_neighbors(surf, rct_key)) - set(instab_path)
+        case1_nkeys = set(node_neighbors(surf, rct_key)) - all_instab_path_keys
         for conn_key1 in case1_nkeys:
             conn_key2 = instab_path[1]
             conn_node1 = node_object(surf, conn_key1)
@@ -392,7 +393,6 @@ def merge_resonant_instabilities(surf: Surface, mech: Mechanism) -> Surface:
             new_edge = edge_set_labels(new_edge, new_edge_key, new_edge_labels)
             surf = remove_edges(surf, [old_edge_key])
             surf = extend(surf, edges=[new_edge])
-            drop_keys.add(rct_key)
             keep_keys.update(instab_path[1:])
 
         # 2. For n-molecular instability:
@@ -419,7 +419,6 @@ def merge_resonant_instabilities(surf: Surface, mech: Mechanism) -> Surface:
                 # Remove n-molecular node and fake well
                 surf = extend(surf, nodes=[new_node], edges=[new_edge])
                 drop_keys.update(conn_path[1:])
-                drop_keys.update(instab_path)
 
     surf = remove_nodes(surf, drop_keys - keep_keys)
     return surf
