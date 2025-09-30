@@ -1,16 +1,19 @@
 import itertools
 from abc import ABC, abstractmethod
+from collections import defaultdict
 from collections.abc import Collection, Sequence
 from pathlib import Path
 from typing import Annotated, Literal, Self
 
+import automol
 import more_itertools as mit
 import networkx as nx
+import polars as pl
 import pydantic
 
 import automech
 from automech import Mechanism
-from automech.reaction import Reaction
+from automech.reaction import Reaction, ReactionSorted
 
 from . import io
 
@@ -339,6 +342,51 @@ def extend(
     nodes = [*surf.nodes, *nodes]
     edges = [*surf.edges, *edges]
     return Surface(nodes=nodes, edges=edges, mess_header=surf.mess_header)
+
+
+def node_induced_subsurface(surf: Surface, keys: Collection[int]) -> Surface:
+    """Get node-induced sub-network.
+
+    :param surf: Surface
+    :param keys: Node keys
+    :return: Surface
+    """
+    keys = set(keys)
+    nodes = [n for n in surf.nodes if n.key in keys]
+    edges = [e for e in surf.edges if e.key <= keys]
+    return Surface(nodes=nodes, edges=edges, mess_header=surf.mess_header)
+
+
+def split_stoichiometries(surf: Surface, mech: Mechanism) -> dict[str, Surface]:
+    """Split surface into distinct stoichiometries.
+
+    :param surf: Surface
+    :param mech: Mechanism
+    :return: Surface
+    """
+    tmp_col = automech.util.df_.c_.temp()
+    rxn_df = automech.util.df_.map_(
+        mech.reactions,
+        Reaction.formula,  # pyright: ignore[reportArgumentType]
+        tmp_col,
+        automol.form.string,
+        dtype_=pl.String(),
+    )
+
+    rcts = rxn_df.get_column(Reaction.reactants).to_list()  # pyright: ignore[reportArgumentType]
+    prds = rxn_df.get_column(Reaction.products).to_list()  # pyright: ignore[reportArgumentType]
+    stoichs = rxn_df.get_column(tmp_col).to_list()  # pyright: ignore[reportArgumentType]
+    node_stoich = dict(zip(map(tuple, rcts + prds), stoichs * 2, strict=True))
+    # Group nodes by stoichiometry
+    stoich_keys = defaultdict(list)
+    for node in surf.nodes:
+        stoich = node_stoich[tuple(node.names_list)]
+        stoich_keys[stoich].append(node.key)
+
+    return {
+        stoich: node_induced_subsurface(surf, keys)
+        for stoich, keys in stoich_keys.items()
+    }
 
 
 def merge_resonant_instabilities(surf: Surface, mech: Mechanism) -> Surface:
