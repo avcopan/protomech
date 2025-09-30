@@ -22,6 +22,8 @@ from ._mech import (
     from_string,
     full_difference,
     left_update,
+    merge_resonant_instabilities,
+    merge_steps,
     neighborhood,
     network,
     reaction_count,
@@ -30,6 +32,7 @@ from ._mech import (
     rename,
     rename_dict,
     replace_unstable_products,
+    resonant_instability_reactions,
     resonant_unstable_species_names,
     species_count,
     species_difference,
@@ -64,6 +67,8 @@ __all__ = [
     "unstable_species_names",
     "rename_dict",
     "network",
+    "resonant_instability_reactions",
+    "resonant_unstable_species_names",
     # add/remove reactions
     "drop_duplicate_reactions",
     "drop_unstable_product_reactions",
@@ -87,6 +92,8 @@ __all__ = [
     "species_difference",
     "reaction_difference",
     "full_difference",
+    "merge_steps",
+    "merge_resonant_instabilities",
     # sequence operations
     "combine_all",
     # parent

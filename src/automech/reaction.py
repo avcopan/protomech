@@ -89,10 +89,10 @@ class ReactionError(Model):
     has_unbalanced_formula: bool
 
 
-class ReactionUnstable(Model):
+class ReactionMerged(Model):
     """Reaction table with unstable species."""
 
-    replaced_unstable: polars.Struct
+    replacements: polars.Struct
 
 
 # validation

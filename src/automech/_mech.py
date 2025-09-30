@@ -19,10 +19,10 @@ from . import reaction, species
 from .reaction import (
     Reaction,
     ReactionDataFrame_,
+    ReactionMerged,
     ReactionRate,
     ReactionSorted,
     ReactionStereo,
-    ReactionUnstable,
 )
 from .species import Species, SpeciesDataFrame_, SpeciesStereo
 from .util import c_, df_, pandera_
@@ -889,6 +889,84 @@ def full_difference(
     return mech
 
 
+def merge_steps(mech1: Mechanism, mech2: Mechanism, remove: bool = True) -> Mechanism:
+    """Take reactions from two mechanisms as sequential steps and merge them.
+
+    :param mech1: First mechanism
+    :param mech2: Second mechanism
+    :param drop: Whether to remove step 2 reactions from the final mechanism
+    :return: Mechanism
+    """
+    non_unimol = mech2.reactions.filter(polars.col(Reaction.reactants).list.len() > 1)
+    if not non_unimol.is_empty():
+        msg = f"Not implemented for non-unimolecular reactants:{non_unimol}"
+        raise ValueError(msg)
+
+    # Form dictionary mapping unstable products to stable ones
+    name_col = c_.temp()
+    uns_rxn_df = mech2.reactions
+    uns_rxn_df = uns_rxn_df.with_columns(
+        polars.col(Reaction.reactants).list.first().alias(name_col)
+    )
+    uns_dct = dict(uns_rxn_df.select(name_col, Reaction.products).iter_rows())
+
+    # Replace unstable reaction products with stable ones
+    #   1. Create columns of stable products for each unstable product
+    mech = reaction_difference(mech1, mech2, drop_species=False)
+    mech.reactions = mech.reactions.with_columns(
+        polars.when(polars.col(Reaction.products).list.contains(name))
+        .then(ins)
+        .otherwise([])
+        .alias(name)
+        for name, ins in uns_dct.items()
+    )
+    #   2. Remove unstable species from product list and concat with stable products
+    mech.reactions = mech.reactions.with_columns(
+        polars.concat_list(
+            polars.col(Reaction.products).list.set_difference(uns_dct.keys()),
+            *(polars.col(name) for name in uns_dct.keys()),
+        )
+    )
+    #   3. Combine the replacement columns into a single struct column
+    mech.reactions = mech.reactions.with_columns(
+        polars.struct(polars.col(name) for name in uns_dct.keys()).alias(
+            ReactionMerged.replacements  # type: ignore
+        )
+    ).drop(uns_dct.keys())
+
+    return mech
+
+
+def merge_resonant_instabilities(mech: Mechanism, remove: bool = True) -> Mechanism:
+    """Merge resonant instabilities in a mechanism.
+
+    Assumes that reactions with unstable reactants describe instabilities.
+
+    :param mech: Mechanism
+    :param remove: Whether to remove instability reactions
+    :return: Mechanism
+    """
+    instab_mech = resonant_instability_reactions(mech)
+    return merge_steps(mech, instab_mech, remove=remove)
+
+
+def resonant_instability_reactions(mech: Mechanism) -> Mechanism:
+    """Get resonant instability reactions from mechanism.
+
+    Assumes that reactions with unstable reactants describe instabilities.
+
+    :param mech: Mechanism
+    :return: Resonant instability reactions
+    """
+    instab_names = resonant_unstable_species_names(mech)
+    instab_mech = mech.model_copy()
+    instab_mech.reactions = mech.reactions.filter(
+        polars.col(Reaction.reactants).list.set_intersection(instab_names).list.len()
+        > 0
+    )
+    return instab_mech
+
+
 # sequence operations
 def combine_all(mechs: Sequence[Mechanism]) -> Mechanism:
     """Combine mechanisms into one.
@@ -1210,7 +1288,7 @@ def replace_unstable_products(
     #   3. Combine the replacement columns into a single struct column
     mech.reactions = mech.reactions.with_columns(
         polars.struct(polars.col(name) for name in uns_dct.keys()).alias(
-            ReactionUnstable.replaced_unstable
+            ReactionMerged.replacements
         )
     ).drop(uns_dct.keys())
     assert not set(species_names(mech, rxn_only=True)) & set(uns_dct), mech
