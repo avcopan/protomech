@@ -54,6 +54,11 @@ def calc(root_path: str | Path, tag: str) -> Path:
     return Path(root_path) / "calc" / tag
 
 
+def mess_calc(root_path: str | Path) -> Path:
+    """Determine data path from root."""
+    return Path(root_path) / "calc" / "mess"
+
+
 def ckin(root_path: str | Path, tag: str) -> Path:
     """Determine data path from root."""
     return Path(root_path) / "calc" / tag / "CKIN"
