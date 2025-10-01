@@ -183,11 +183,11 @@ def node_object(surf: Surface, key: int, copy: bool = False) -> Node:
     :param key: Key
     :return: Node
     """
-    node = next((n for n in surf.nodes if n.key == key), None)
+    node = get_node_object(surf, key, copy=copy)
     if node is None:
         msg = f"Key {key} is not associated with a node:\n{surf.model_dump()}"
         raise ValueError(msg)
-    return node.model_copy() if copy else node
+    return node
 
 
 def edge_object(surf: Surface, key: Collection[int], copy: bool = False) -> Edge:
@@ -197,12 +197,36 @@ def edge_object(surf: Surface, key: Collection[int], copy: bool = False) -> Edge
     :param key: Key
     :return: Node
     """
-    key = key if isinstance(key, frozenset) else frozenset(key)
-    edge = next((e for e in surf.edges if e.key == key), None)
+    edge = get_edge_object(surf, key, copy=copy)
     if edge is None:
         msg = f"Key {key} is not associated with an edge:\n{surf.model_dump()}"
         raise ValueError(msg)
-    return edge.model_copy() if copy else edge
+    return edge
+
+
+def get_node_object(surf: Surface, key: int, copy: bool = False) -> Node | None:
+    """Look up node object by key
+
+    :param surf: Surface
+    :param key: Key
+    :return: Node
+    """
+    node = next((n for n in surf.nodes if n.key == key), None)
+    return None if node is None else node.model_copy() if copy else node
+
+
+def get_edge_object(
+    surf: Surface, key: Collection[int], copy: bool = False
+) -> Edge | None:
+    """Look up node object by key
+
+    :param surf: Surface
+    :param key: Key
+    :return: Node
+    """
+    key = key if isinstance(key, frozenset) else frozenset(key)
+    edge = next((e for e in surf.edges if e.key == key), None)
+    return None if edge is None else edge.model_copy() if copy else edge
 
 
 def node_neighbors(surf: Surface, key: int, skip_fake: bool = False) -> list[int]:
@@ -508,7 +532,7 @@ def instability_product_node(
     :param prd_key: Instability product key
     :return: Node
     """
-    node0 = node_object(surf, key)
+    node = node_object(surf, key, copy=True)
     rct_node = node_object(surf, rct_key)
     prd_node = node_object(surf, prd_key)
 
@@ -516,12 +540,11 @@ def instability_product_node(
         msg = f"Instability reactant must be a unimolecular node: {rct_node}"
         raise ValueError(msg)
 
-    if isinstance(node0, NmolNode):
+    if isinstance(node, NmolNode):
         (rct_name,) = rct_node.names_list
         prd_names = prd_node.names_list
         prd_energy = prd_node.energy - rct_node.energy
 
-        node = node0.model_copy(deep=True)
         node.names.remove(rct_name)
         node.names = sorted([*node.names, *prd_names])
         node.energy += prd_energy

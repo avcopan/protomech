@@ -213,3 +213,4 @@ __marimo__/
 # This project
 .automech/
 uv.lock
+.pyvis/
