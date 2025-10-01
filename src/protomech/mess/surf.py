@@ -141,6 +141,9 @@ class Surface(pydantic.BaseModel):
         if not set(itertools.chain.from_iterable(edge_keys)) <= set(keys):
             raise ValueError(f"Edge keys {edge_keys} do not match node keys {keys}")
 
+        if not len(edge_keys) == len(set(edge_keys)):
+            raise ValueError(f"Non-unique edge keys: {edge_keys}")
+
         return self
 
     @pydantic.model_validator(mode="after")
