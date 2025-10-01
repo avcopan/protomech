@@ -425,6 +425,7 @@ def merge_resonant_instabilities(surf: Surface, mech: Mechanism) -> Surface:
         if rct_key is not None and prd_key is not None:
             instab_path_dct[rct_name] = shortest_path(surf, rct_key, prd_key)
 
+    new_node_key_dct = {}
     all_instab_path_keys = set(itertools.chain.from_iterable(instab_path_dct.values()))
     drop_keys = all_instab_path_keys.copy()
     keep_keys = set()
@@ -452,6 +453,22 @@ def merge_resonant_instabilities(surf: Surface, mech: Mechanism) -> Surface:
         #   - Iterate over n-molecular nodes containing the unstable spacies
         case2_keys = node_keys_containing(surf, instab_name)
         for instab_key in case2_keys:
+            # Create a new node to containing the instability products
+            new_node = instability_product_node(surf, instab_key, rct_key, prd_key)
+
+            if new_node.label in new_node_key_dct:
+                new_key = new_node_key_dct[new_node.label]
+                new_node.key = new_key
+                new_nodes = []
+            else:
+                new_key = max(node_keys(surf)) + 1
+                new_node.key = new_key
+                new_nodes = [new_node]
+
+            # This itertor gets consumed at its first use, to make sure we don't
+            # create duplicates below
+            new_nodes_iter = iter(new_nodes)
+
             # Iterate over neighbors of these nodes, skipping fake wells
             # These are the neighbors we want to connect to
             conn_keys = node_neighbors(surf, instab_key, skip_fake=True)
@@ -459,18 +476,17 @@ def merge_resonant_instabilities(surf: Surface, mech: Mechanism) -> Surface:
                 # Get the path from the connection node to the n-molecular node
                 conn_node = node_object(surf, conn_key)
                 conn_path = shortest_path(surf, conn_key, instab_key)
-                # Update n-molecular node to give unstable products
-                new_key = max(node_keys(surf)) + 1
-                new_node = instability_product_node(
-                    surf, instab_key, rct_key, prd_key, new_key=new_key
-                )
+                # Create an edge to the new node
                 new_edge_key = [conn_key, new_key]
                 new_edge_labels = [conn_node.label, new_node.label]
                 new_edge = edge_object(surf, conn_path[:2], copy=True)
                 new_edge.key = frozenset(new_edge_key)
                 new_edge = edge_set_labels(new_edge, new_edge_key, new_edge_labels)
+                # Add node, if not already added, along with edge
+                surf = extend(surf, nodes=list(new_nodes_iter), edges=[new_edge])
+                # Update new node dictionary
+                new_node_key_dct[new_node.label] = new_node.key
                 # Remove n-molecular node and fake well
-                surf = extend(surf, nodes=[new_node], edges=[new_edge])
                 drop_keys.update(conn_path[1:])
 
     surf = remove_nodes(surf, drop_keys - keep_keys)
@@ -479,7 +495,7 @@ def merge_resonant_instabilities(surf: Surface, mech: Mechanism) -> Surface:
 
 # Create nodes
 def instability_product_node(
-    surf: Surface, key: int, rct_key: int, prd_key: int, new_key: int | None = None
+    surf: Surface, key: int, rct_key: int, prd_key: int
 ) -> NmolNode:
     """Generate a new node describing the product of an unstable one.
 
@@ -489,7 +505,6 @@ def instability_product_node(
     :param prd_key: Instability product key
     :return: Node
     """
-    new_key = key if new_key is None else new_key
     node0 = node_object(surf, key)
     rct_node = node_object(surf, rct_key)
     prd_node = node_object(surf, prd_key)
@@ -508,7 +523,6 @@ def instability_product_node(
         node.names = sorted([*node.names, *prd_names])
         node.energy += prd_energy
         node.mess_body = f"  ! ZeroEnergy[kcal/mol]      {node.energy:.2f}\n  Dummy"
-        node.key = new_key
 
     else:
         msg = "Not yet implemented"
