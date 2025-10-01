@@ -1,7 +1,7 @@
 import itertools
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from pathlib import Path
 from typing import Annotated, Literal, Self
 
@@ -29,9 +29,8 @@ class Feature(pydantic.BaseModel, ABC):
         """Label."""
         pass
 
-    @property
     @abstractmethod
-    def mess_block(self) -> str | None:
+    def mess_block(self, label_dct: Mapping[int, str]) -> str:
         """MESS block."""
         pass
 
@@ -60,8 +59,7 @@ class UnimolNode(Node):
         """Label."""
         return self.name
 
-    @property
-    def mess_block(self) -> str | None:
+    def mess_block(self, label_dct: Mapping[int, str]) -> str:
         """MESS block."""
         return f"Well  {self.label}\n{self.mess_body}"
 
@@ -85,8 +83,7 @@ class NmolNode(Node):
         """Label."""
         return self.names
 
-    @property
-    def mess_block(self) -> str | None:
+    def mess_block(self, label_dct: Mapping[int, str]) -> str:
         """MESS block."""
         if self.interacting:
             return f"Well  {self.label}\n{self.mess_body}"
@@ -101,19 +98,16 @@ class Edge(Feature):
     name: str
     energy: float
     barrierless: bool = False
-    well_labels: tuple[str, str] | None = None
 
     @property
     def label(self) -> str:
         """Label."""
         return self.name
 
-    @property
-    def mess_block(self) -> str | None:
+    def mess_block(self, label_dct: Mapping[int, str]) -> str:
         """MESS block."""
-        assert self.well_labels is not None, self
-        well_label1, well_label2 = self.well_labels
-        return f"Barrier  {self.label} {well_label1} {well_label2}\n{self.mess_body}"
+        key1, key2 = sorted(self.key)
+        return f"Barrier  {self.label} {label_dct[key1]} {label_dct[key2]}\n{self.mess_body}"
 
 
 class Surface(pydantic.BaseModel):
@@ -146,25 +140,16 @@ class Surface(pydantic.BaseModel):
 
         return self
 
-    @pydantic.model_validator(mode="after")
-    def _update_edges(self):
-        # Update edges with well labels
-        label_dct = {n.key: n.label for n in self.nodes}
-        edges = []
-        for edge0 in self.edges:
-            edge = edge0.model_copy()
-            key1, key2 = sorted(edge.key)
-            edge.well_labels = (label_dct[key1], label_dct[key2])
-            edges.append(edge)
-
-        self.edges = edges
-        return self
-
 
 # Properties
 def node_keys(surf: Surface) -> list[int]:
     """Node keys for the surface."""
     return [n.key for n in surf.nodes]
+
+
+def node_label_dict(surf: Surface) -> dict[int, str]:
+    """Node labels for the surface."""
+    return {n.key: n.label for n in surf.nodes}
 
 
 def fake_well_keys(surf: Surface) -> list[int]:
@@ -309,6 +294,33 @@ def shortest_path(surf: Surface, key1: int, key2: int) -> list[int]:
 
 
 # Transformations
+def update_keys(surf: Surface, key_dct: Mapping[int, int]) -> Surface:
+    """Update keys for surface.
+
+    :param surf: Surface
+    :param key_dct: Mapping to update keys
+    :return: Surface
+    """
+    surf = surf.model_copy(deep=True)
+    for node in surf.nodes:
+        node.key = key_dct[node.key]
+    for edge in surf.edges:
+        key1, key2 = edge.key
+        edge.key = frozenset({key_dct[key1], key_dct[key2]})
+    return surf
+
+
+def shift_keys(surf: Surface, shift: int) -> Surface:
+    """Shift keys for surface.
+
+    :param surf: Surface
+    :param shift: Shift
+    :return: Surface
+    """
+    key_dct = {k: k + shift for k in node_keys(surf)}
+    return update_keys(surf, key_dct)
+
+
 def set_no_fake_well_extension(surf: Surface) -> Surface:
     """Turn off well extension for fake wells.
 
@@ -464,14 +476,10 @@ def merge_resonant_instabilities(surf: Surface, mech: Mechanism) -> Surface:
         case1_nkeys = set(node_neighbors(surf, rct_key)) - all_instab_path_keys
         for conn_key1 in case1_nkeys:
             conn_key2 = instab_path[1]
-            conn_node1 = node_object(surf, conn_key1)
-            conn_node2 = node_object(surf, conn_key2)
             edge_key0 = [conn_key1, rct_key]
             edge_key = [conn_key1, conn_key2]
-            edge_labels = [conn_node1.label, conn_node2.label]
             edge = edge_object(surf, edge_key0, copy=True)
             edge.key = frozenset(edge_key)
-            edge = edge_set_labels(edge, edge_key, edge_labels)
             surf = remove_edges(surf, [edge_key0])
             surf = extend(surf, edges=[edge])
             keep_keys.update(instab_path[1:])
@@ -534,14 +542,6 @@ def update_instability_product_edge(
         # Copy the source edge and set the key
         edge = src_edge.model_copy(deep=True)
         edge.key = frozenset(edge_key)
-        # Set the well labels (annoying -- TODO: refactor to avoid using well labels)
-        key1, key2 = edge_key if isinstance(int, Sequence) else sorted(edge_key)
-        node1 = node_object(surf, key1)
-        node2 = node_object(surf, key2)
-        _, well_labels = zip(
-            *sorted(zip([key1, key2], [node1.label, node2.label], strict=True))
-        )
-        edge.well_labels = well_labels
         surf = extend(surf, edges=[edge])
     else:
         msg = f"Attempting to update {edge_key}: {edge}"
@@ -586,27 +586,6 @@ def instability_product_node(
     return node
 
 
-def edge_set_labels(
-    edge: Edge, key: Collection[int], well_labels: Sequence[str]
-) -> Edge:
-    """Set labels for an edge.
-
-    :param edge: Edge
-    :param key: Edge key, as sorted or unsorted pair of node keys
-    :param well_labels: Labels in the order of key (if Sequence) or in the
-        sorted order of key (if unordered Collection)
-    :return: Edge
-    """
-    key = key if isinstance(int, Sequence) else sorted(key)
-    if not len(key) == len(well_labels) == 2:
-        msg = f"The key and labels for an edge must have length 2:\nkey={key}\nlabels={well_labels}"
-        raise ValueError(msg)
-
-    _, labels = zip(*sorted(zip(key, well_labels, strict=True)))
-    edge.well_labels = tuple(labels)
-    return edge
-
-
 # N-ary operations
 def combine(surfs: Sequence[Surface]) -> Surface:
     """Combine multiple surfaces.
@@ -616,22 +595,19 @@ def combine(surfs: Sequence[Surface]) -> Surface:
     """
     mess_header = surfs[0].mess_header
 
-    key_dct = {}
-    all_nodes = itertools.chain.from_iterable(surf.nodes for surf in surfs)
-    nodes = []
-    for key, node in enumerate(mit.unique_everseen(all_nodes, key=lambda n: n.label)):
-        nodes.append(node.model_copy(update={"key": key}, deep=True))
-        key_dct[node.label] = key
+    if not surfs:
+        msg = f"Need at least one surface for combination: {surfs}"
+        raise ValueError(msg)
 
-    all_edges = itertools.chain.from_iterable(surf.edges for surf in surfs)
-    edges = []
-    for edge in mit.unique_everseen(all_edges, key=lambda e: e.label):
-        edges.append(
-            edge.model_copy(
-                update={"key": frozenset(map(key_dct.get, edge.well_labels))}
-            )
-        )
+    new_key = 0
+    shift_surfs: list[Surface] = []
+    for surf in surfs:
+        min_key = min(node_keys(surf))
+        shift_surfs.append(shift_keys(surf, new_key - min_key))
+        new_key = max(node_keys(surf)) + 1
 
+    nodes = list(itertools.chain.from_iterable(s.nodes for s in shift_surfs))
+    edges = list(itertools.chain.from_iterable(s.edges for s in shift_surfs))
     return Surface(nodes=nodes, edges=edges, mess_header=mess_header)
 
 
@@ -675,9 +651,10 @@ def mess_input(surf: Surface) -> str:
     :param surf: Surface
     :return: MESS input
     """
+    label_dct = node_label_dict(surf)
     mess_header = surf.mess_header
-    node_blocks = [n.mess_block for n in surf.nodes]
-    edge_blocks = [e.mess_block for e in surf.edges]
+    node_blocks = [n.mess_block(label_dct) for n in surf.nodes]
+    edge_blocks = [e.mess_block(label_dct) for e in surf.edges]
     assert isinstance(mess_header, str)
     assert all(isinstance(b, str) for b in node_blocks)
     assert all(isinstance(b, str) for b in edge_blocks)
@@ -742,15 +719,18 @@ def edge_from_mess_block_parse_data(
     if not block_data.type == "Barrier":
         raise ValueError("Cannot create barrier object from non-barrier block.")
 
-    name, *well_labels = block_data.header.split()
+    name, label1, label2 = block_data.header.split()
     fake = name.startswith("FakeB-")
-    assert all(label in key_dct for label in well_labels), (
-        f"{well_labels} not in {key_dct}"
-    )
+    for label in [label1, label2]:
+        if label not in key_dct:
+            msg = (
+                f"Cannot create edge for unknown node {label}: {block_data}\n{key_dct}"
+            )
+            raise ValueError(msg)
+
     barrierless = "PhaseSpaceTheory" in block_data.body
-    key = frozenset(map(key_dct.get, well_labels))
     return Edge(
-        key=key,
+        key=frozenset({key_dct[label1], key_dct[label2]}),
         name=name,
         energy=block_data.energy,
         fake=fake,
