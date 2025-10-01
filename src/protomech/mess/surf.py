@@ -442,14 +442,14 @@ def merge_resonant_instabilities(surf: Surface, mech: Mechanism) -> Surface:
             conn_key2 = instab_path[1]
             conn_node1 = node_object(surf, conn_key1)
             conn_node2 = node_object(surf, conn_key2)
-            old_edge_key = [conn_key1, rct_key]
-            new_edge_key = [conn_key1, conn_key2]
-            new_edge_labels = [conn_node1.label, conn_node2.label]
-            new_edge = edge_object(surf, old_edge_key, copy=True)
-            new_edge.key = frozenset(new_edge_key)
-            new_edge = edge_set_labels(new_edge, new_edge_key, new_edge_labels)
-            surf = remove_edges(surf, [old_edge_key])
-            surf = extend(surf, edges=[new_edge])
+            edge_key0 = [conn_key1, rct_key]
+            edge_key = [conn_key1, conn_key2]
+            edge_labels = [conn_node1.label, conn_node2.label]
+            edge = edge_object(surf, edge_key0, copy=True)
+            edge.key = frozenset(edge_key)
+            edge = edge_set_labels(edge, edge_key, edge_labels)
+            surf = remove_edges(surf, [edge_key0])
+            surf = extend(surf, edges=[edge])
             keep_keys.update(instab_path[1:])
 
         # 2. For n-molecular instability:
