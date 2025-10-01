@@ -15,6 +15,7 @@ import automech
 from automech import Mechanism
 from automech.reaction import Reaction, ReactionSorted
 
+from ..util import sequence
 from . import io
 
 
@@ -120,23 +121,28 @@ class Surface(pydantic.BaseModel):
 
     @pydantic.model_validator(mode="after")
     def _validate_keys(self):
-        # Validate node keys
         keys = [n.key for n in self.nodes]
-        if not len(keys) == len(set(keys)):
-            raise ValueError(f"Non-unique node keys: {keys}")
 
-        # Validate labels
-        labels = [n.label for n in self.nodes]
-        if not len(labels) == len(set(labels)):
-            raise ValueError(f"Non-unique node labels: {labels}")
+        dup_keys = sequence.duplicates(keys)
+        if dup_keys:
+            raise ValueError(f"Non-unique node keys: {dup_keys}")
 
-        # Validate edge keys
+        dup_labels = sequence.duplicates([n.label for n in self.nodes])
+        if dup_labels:
+            raise ValueError(f"Non-unique node labels: {dup_labels}")
+
         edge_keys = [e.key for e in self.edges]
-        if not set(itertools.chain.from_iterable(edge_keys)) <= set(keys):
-            raise ValueError(f"Edge keys {edge_keys} do not match node keys {keys}")
+        miss_edge_keys = [k for k in edge_keys if not k <= set(keys)]
+        if miss_edge_keys:
+            raise ValueError(
+                f"Edge keys {miss_edge_keys} do not match node keys {keys}"
+            )
 
-        if not len(edge_keys) == len(set(edge_keys)):
-            raise ValueError(f"Non-unique edge keys: {edge_keys}")
+        dup_edge_keys = sequence.duplicates(edge_keys)
+        if dup_edge_keys:
+            for edge_key in dup_edge_keys:
+                print(next(e.label for e in self.edges if e.key == edge_key))
+            raise ValueError(f"Non-unique edge keys: {dup_edge_keys}")
 
         return self
 
