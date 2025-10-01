@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from collections.abc import Collection, Mapping, Sequence
 from pathlib import Path
-from typing import Annotated, Literal, Self
+from typing import Annotated, Literal
 
 import automol
 import more_itertools as mit
@@ -13,7 +13,7 @@ import pydantic
 
 import automech
 from automech import Mechanism
-from automech.reaction import Reaction, ReactionSorted
+from automech.reaction import Reaction
 
 from ..util import sequence
 from . import io
@@ -167,35 +167,41 @@ def fake_well_keys(surf: Surface) -> list[int]:
     return [n.key for n in surf.nodes if n.fake]
 
 
-def node_object(surf: Surface, key: int, copy: bool = False) -> Node:
+def node_object(
+    surf: Surface, key: int, copy: bool = False, deep: bool = False
+) -> Node:
     """Look up node object by key
 
     :param surf: Surface
     :param key: Key
     :return: Node
     """
-    node = get_node_object(surf, key, copy=copy)
+    node = get_node_object(surf, key, copy=copy, deep=deep)
     if node is None:
         msg = f"Key {key} is not associated with a node:\n{surf.model_dump()}"
         raise ValueError(msg)
     return node
 
 
-def edge_object(surf: Surface, key: Collection[int], copy: bool = False) -> Edge:
+def edge_object(
+    surf: Surface, key: Collection[int], copy: bool = False, deep: bool = False
+) -> Edge:
     """Look up node object by key
 
     :param surf: Surface
     :param key: Key
     :return: Node
     """
-    edge = get_edge_object(surf, key, copy=copy)
+    edge = get_edge_object(surf, key, copy=copy, deep=deep)
     if edge is None:
         msg = f"Key {key} is not associated with an edge:\n{surf.model_dump()}"
         raise ValueError(msg)
     return edge
 
 
-def get_node_object(surf: Surface, key: int, copy: bool = False) -> Node | None:
+def get_node_object(
+    surf: Surface, key: int, copy: bool = False, deep: bool = False
+) -> Node | None:
     """Look up node object by key
 
     :param surf: Surface
@@ -203,11 +209,11 @@ def get_node_object(surf: Surface, key: int, copy: bool = False) -> Node | None:
     :return: Node
     """
     node = next((n for n in surf.nodes if n.key == key), None)
-    return None if node is None else node.model_copy() if copy else node
+    return None if node is None else node.model_copy(deep=deep) if copy else node
 
 
 def get_edge_object(
-    surf: Surface, key: Collection[int], copy: bool = False
+    surf: Surface, key: Collection[int], copy: bool = False, deep: bool = False
 ) -> Edge | None:
     """Look up node object by key
 
@@ -217,7 +223,7 @@ def get_edge_object(
     """
     key = key if isinstance(key, frozenset) else frozenset(key)
     edge = next((e for e in surf.edges if e.key == key), None)
-    return None if edge is None else edge.model_copy() if copy else edge
+    return None if edge is None else edge.model_copy(deep=deep) if copy else edge
 
 
 def node_neighbors(surf: Surface, key: int, skip_fake: bool = False) -> list[int]:
@@ -580,8 +586,10 @@ def instability_product_node(
         prd_names = prd_node.names_list
         prd_energy = prd_node.energy - rct_node.energy
 
-        node.names.remove(rct_name)
-        node.names = sorted([*node.names, *prd_names])
+        names = node.names.copy()
+        names.remove(rct_name)
+        names.extend(prd_names)
+        node.names = sorted(names)
         node.energy += prd_energy
         node.mess_body = f"  ! ZeroEnergy[kcal/mol]      {node.energy:.2f}\n  Dummy"
 
