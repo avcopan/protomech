@@ -76,7 +76,7 @@ class NmolNode(Node):
         """Label."""
         label = "+".join(self.names)
         if self.fake:
-            label = f"Fake({label})"
+            label = f"FakeW-{label}"
 
         return label
 
