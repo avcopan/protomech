@@ -605,15 +605,27 @@ def combine(surfs: Sequence[Surface]) -> Surface:
         msg = f"Need at least one surface for combination: {surfs}"
         raise ValueError(msg)
 
-    new_key = 0
-    shift_surfs: list[Surface] = []
-    for surf in surfs:
-        min_key = min(node_keys(surf))
-        shift_surfs.append(shift_keys(surf, new_key - min_key))
-        new_key = max(node_keys(surf)) + 1
+    # Determine new key for each unique node
+    all_nodes = itertools.chain.from_iterable(s.nodes for s in surfs)
+    label_key_dct = {}
+    nodes = []
+    for key, node0 in enumerate(mit.unique_everseen(all_nodes, key=lambda n: n.label)):
+        node = node0.model_copy(update={"key": key})
+        nodes.append(node)
+        label_key_dct[node.label] = node.key
 
-    nodes = list(itertools.chain.from_iterable(s.nodes for s in shift_surfs))
-    edges = list(itertools.chain.from_iterable(s.edges for s in shift_surfs))
+    # Update edge keys against node key update
+    all_edges = []
+    for surf in surfs:
+        key_dct = {n.key: label_key_dct[n.label] for n in surf.nodes}
+        for edge0 in surf.edges:
+            key1, key2 = edge0.key
+            edge_key = frozenset({key_dct[key1], key_dct[key2]})
+            edge = edge0.model_copy(update={"key": edge_key})
+            all_edges.append(edge)
+
+    edges = list(mit.unique_everseen(all_edges, key=lambda e: e.key))
+
     return Surface(nodes=nodes, edges=edges, mess_header=mess_header)
 
 
