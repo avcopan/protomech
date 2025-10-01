@@ -500,19 +500,16 @@ def merge_resonant_instabilities(surf: Surface, mech: Mechanism) -> Surface:
             # These are the neighbors we want to connect to
             conn_keys = node_neighbors(surf, instab_key, skip_fake=True)
             for conn_key in conn_keys:
+                # Add node, if not already added, along with edge
+                surf = extend(surf, nodes=list(new_nodes_iter))
+                new_node_key_dct[new_node.label] = new_node.key
+
                 # Get the path from the connection node to the n-molecular node
-                conn_node = node_object(surf, conn_key)
                 conn_path = shortest_path(surf, conn_key, instab_key)
                 # Create an edge to the new node
+                src_edge_key = conn_path[:2]
                 new_edge_key = [conn_key, new_key]
-                new_edge_labels = [conn_node.label, new_node.label]
-                new_edge = edge_object(surf, conn_path[:2], copy=True)
-                new_edge.key = frozenset(new_edge_key)
-                new_edge = edge_set_labels(new_edge, new_edge_key, new_edge_labels)
-                # Add node, if not already added, along with edge
-                surf = extend(surf, nodes=list(new_nodes_iter), edges=[new_edge])
-                # Update new node dictionary
-                new_node_key_dct[new_node.label] = new_node.key
+                surf = update_instability_product_edge(surf, src_edge_key, new_edge_key)
                 # Remove n-molecular node and fake well
                 drop_keys.update(conn_path[1:])
 
@@ -521,6 +518,38 @@ def merge_resonant_instabilities(surf: Surface, mech: Mechanism) -> Surface:
 
 
 # Create nodes
+def update_instability_product_edge(
+    surf: Surface, src_edge_key: Collection[int], edge_key: Collection[int]
+) -> Surface:
+    """Create/update edge connecting to an instability product.
+
+    :param surf: Surface
+    :param src_edge_key: Edge key of source describing the barrier
+    :param edge_key: Edge key of target, to avoid creating duplicate edges
+    :return: Surface
+    """
+    src_edge = edge_object(surf, src_edge_key, copy=True)
+    edge = get_edge_object(surf, edge_key)
+    if edge is None:
+        # Copy the source edge and set the key
+        edge = src_edge.model_copy(deep=True)
+        edge.key = frozenset(edge_key)
+        # Set the well labels (annoying -- TODO: refactor to avoid using well labels)
+        key1, key2 = edge_key if isinstance(int, Sequence) else sorted(edge_key)
+        node1 = node_object(surf, key1)
+        node2 = node_object(surf, key2)
+        _, well_labels = zip(
+            *sorted(zip([key1, key2], [node1.label, node2.label], strict=True))
+        )
+        edge.well_labels = well_labels
+        surf = extend(surf, edges=[edge])
+    else:
+        msg = f"Attempting to update {edge_key}: {edge}"
+        raise NotImplementedError(msg)
+
+    return surf
+
+
 def instability_product_node(
     surf: Surface, key: int, rct_key: int, prd_key: int
 ) -> NmolNode:
