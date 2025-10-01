@@ -127,14 +127,19 @@ class Surface(pydantic.BaseModel):
     @pydantic.model_validator(mode="after")
     def _validate_keys(self):
         # Validate node keys
-        nkeys = [n.key for n in self.nodes]
-        if not len(nkeys) == len(set(nkeys)):
-            raise ValueError(f"Non-unique node keys: {nkeys}")
+        keys = [n.key for n in self.nodes]
+        if not len(keys) == len(set(keys)):
+            raise ValueError(f"Non-unique node keys: {keys}")
+
+        # Validate labels
+        labels = [n.label for n in self.nodes]
+        if not len(labels) == len(set(labels)):
+            raise ValueError(f"Non-unique node labels: {labels}")
 
         # Validate edge keys
-        ekeys = [e.key for e in self.edges]
-        if not set(itertools.chain.from_iterable(ekeys)) <= set(nkeys):
-            raise ValueError(f"Edge keys {ekeys} do not match node keys {nkeys}")
+        edge_keys = [e.key for e in self.edges]
+        if not set(itertools.chain.from_iterable(edge_keys)) <= set(keys):
+            raise ValueError(f"Edge keys {edge_keys} do not match node keys {keys}")
 
         return self
 
