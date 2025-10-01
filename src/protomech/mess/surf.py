@@ -1,4 +1,5 @@
 import itertools
+import textwrap
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from collections.abc import Collection, Mapping, Sequence
@@ -22,7 +23,7 @@ from . import io
 class Feature(pydantic.BaseModel, ABC):
     energy: float
     fake: bool = False
-    mess_body: str | None = None
+    mess_body: str
 
     @property
     @abstractmethod
@@ -548,16 +549,27 @@ def update_instability_product_edge(
     :param edge_key: Edge key of target, to avoid creating duplicate edges
     :return: Surface
     """
-    src_edge = edge_object(surf, src_edge_key, copy=True)
+    src_edge = edge_object(surf, src_edge_key)
     edge = get_edge_object(surf, edge_key)
     if edge is None:
         # Copy the source edge and set the key
-        edge = src_edge.model_copy(deep=True)
+        edge = src_edge.model_copy()
         edge.key = frozenset(edge_key)
         surf = extend(surf, edges=[edge])
+    # Make MESS body a Union
+    # (Does *not* copy! Updates the edge in-place!)
     else:
-        msg = f"Attempting to update {edge_key}: {edge}"
-        raise NotImplementedError(msg)
+        mess_body0 = edge.mess_body
+        if "Union" not in mess_body0:
+            mess_body0 = textwrap.indent(mess_body0, "  ")
+            mess_body0 = f"  Union\n{mess_body0}"
+        # If this is already a Union, drop the trailing End keyword
+        else:
+            lines = mess_body0.strip().splitlines()
+            assert "End" in lines[-1], f"Sanity check: 'End' not in '{lines[-1]}'"
+            mess_body0 = "\n".join(lines[:-1])
+        new_mess_body = textwrap.indent(src_edge.mess_body, "  ")
+        edge.mess_body = f"{mess_body0}\n{new_mess_body}\nEnd  ! Union"
 
     return surf
 
