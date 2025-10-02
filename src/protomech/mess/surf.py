@@ -191,6 +191,26 @@ def fake_well_keys(surf: Surface) -> list[int]:
     return [n.key for n in surf.nodes if n.fake]
 
 
+def node_object_from_label(surf: Surface, label: str) -> Node:
+    """Look up node object by label.
+
+    :param surf: Surface
+    :param label: Label
+    :return: Node
+    """
+    return next(n for n in surf.nodes if n.label == label)
+
+
+def edge_object_from_label(surf: Surface, label: str) -> Edge:
+    """Look up edge object by label.
+
+    :param surf: Surface
+    :param label: Label
+    :return: edge
+    """
+    return next(e for e in surf.edges if e.label == label)
+
+
 def node_object(
     surf: Surface, key: int, copy: bool = False, deep: bool = False
 ) -> Node:
