@@ -37,6 +37,13 @@ class Feature(pydantic.BaseModel, ABC):
         """MESS block."""
         pass
 
+    def remove_mess_body_tunneling(self) -> None:
+        """Remove Eckart tunneling from MESS body."""
+        regex = re.compile(
+            r"^\s*Tunneling.*?^\s*End\s*\n?", flags=re.DOTALL | re.MULTILINE
+        )
+        self.mess_body = regex.sub("", self.mess_body)
+
     def update_mess_body_energy(self) -> None:
         """Update MESS block with the current energy value."""
         energy = self.energy
