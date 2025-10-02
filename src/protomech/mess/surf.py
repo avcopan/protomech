@@ -250,7 +250,17 @@ def node_neighbors(surf: Surface, key: int, skip_fake: bool = False) -> list[int
     return nkeys
 
 
-def node_key(surf: Surface, names: list[str], fake: bool = False) -> int | None:
+def node_key_from_label(surf: Surface, label: str) -> int:
+    key = next((n.key for n in surf.nodes if n.label == label), None)
+    if key is None:
+        msg = f"No node found matching label {label}."
+        raise ValueError(msg)
+    return key
+
+
+def node_key_from_names(
+    surf: Surface, names: list[str], fake: bool = False
+) -> int | None:
     """Look up node key given names.
 
     :param surf: Surface
@@ -474,8 +484,8 @@ def merge_resonant_instabilities(surf: Surface, mech: Mechanism) -> Surface:
 
     instab_path_dct: dict[str, list[int]] = {}
     for (rct_name,), prd_names in instab_rxns:
-        rct_key = node_key(surf, [rct_name])
-        prd_key = node_key(surf, prd_names)
+        rct_key = node_key_from_names(surf, [rct_name])
+        prd_key = node_key_from_names(surf, prd_names)
         if rct_key is not None and prd_key is not None:
             instab_path_dct[rct_name] = shortest_path(surf, rct_key, prd_key)
 

@@ -1,6 +1,5 @@
 """Read MESS file format."""
 
-import itertools
 import re
 from pathlib import Path
 from typing import Literal
