@@ -1,4 +1,5 @@
 import itertools
+import re
 import textwrap
 from abc import ABC, abstractmethod
 from collections import defaultdict
@@ -35,6 +36,26 @@ class Feature(pydantic.BaseModel, ABC):
     def mess_block(self, label_dct: Mapping[int, str]) -> str:
         """MESS block."""
         pass
+
+    def update_mess_body_energy(self) -> None:
+        """Update MESS block with the current energy value."""
+        energy = self.energy
+        mess_body = self.mess_body
+        ground_energy_regex = re.compile(r"^\s*GroundEnergy.*$", flags=re.MULTILINE)
+        zero_energy_regex = re.compile(r"^\s*ZeroEnergy.*$", flags=re.MULTILINE)
+        comment_energy_regex = re.compile(r"^\s*!\s*ZeroEnergy.*$", flags=re.MULTILINE)
+        if ground_energy_regex.search(mess_body):
+            energy_line = f"  GroundEnergy[kcal/mol]      {energy:.2f}"
+            self.mess_body = ground_energy_regex.sub(energy_line, mess_body)
+        elif zero_energy_regex.search(mess_body):
+            energy_line = f"    ZeroEnergy[kcal/mol]      {energy:.2f}"
+            self.mess_body = zero_energy_regex.sub(energy_line, mess_body)
+        elif comment_energy_regex.search(mess_body):
+            energy_line = f"    ZeroEnergy[kcal/mol]      {energy:.2f}"
+            self.mess_body = comment_energy_regex.sub(energy_line, mess_body)
+        else:
+            msg = f"Unable to find GroundEnergy or ZeroEnergy line in MESS body:\n{self.mess_body}"
+            raise ValueError(msg)
 
 
 class Node(Feature):
