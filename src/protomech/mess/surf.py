@@ -149,8 +149,10 @@ class Surface(pydantic.BaseModel):
 
 
 # Properties
-def node_keys(surf: Surface) -> list[int]:
+def node_keys(surf: Surface, labels: Collection[str] | None = None) -> list[int]:
     """Node keys for the surface."""
+    if labels is not None:
+        return [n.key for n in surf.nodes if n.label in labels]
     return [n.key for n in surf.nodes]
 
 
