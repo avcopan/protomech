@@ -146,7 +146,7 @@ class Surface(pydantic.BaseModel):
     nodes: list[Node]
     edges: list[Edge]
 
-    mess_header: str | None = None
+    mess_header: str
 
     @pydantic.model_validator(mode="after")
     def _validate_keys(self):
@@ -598,10 +598,11 @@ def merge_resonant_instabilities(surf: Surface, mech: Mechanism) -> Surface:
     return surf
 
 
-def correct_fake_well_energies(surf: Surface, in_place: bool = False) -> Surface:
+def correct_fake_well_energies(surf: Surface, *, in_place: bool = False) -> Surface:
     """Correct fake well energies to fall below their lowest associated barrier.
 
     :param surf: Surface
+    :param in_place: Whether to modify the surface in place
     :return: Surface
     """
     surf = surf if in_place else surf.model_copy(deep=True)
@@ -617,6 +618,27 @@ def correct_fake_well_energies(surf: Surface, in_place: bool = False) -> Surface
             if energy < node.energy:
                 node.energy = energy
                 node.update_mess_body_energy()
+    return surf
+
+
+def set_mess_header_temperature_list(
+    surf: Surface, temperatures: Sequence[float], *, in_place: bool = False
+) -> Surface:
+    """Set the temperature list in the MESS header.
+
+    :param surf: Surface
+    :param in_place: Whether to modify the surface in place
+    :return: Surface
+    """
+    surf = surf if in_place else surf.model_copy(deep=True)
+    temperature_str = "  ".join(f"{t:.1f}" for t in temperatures)
+    line = f"TemperatureList[K]                     {temperature_str}"
+    line_regex = re.compile(r"^\s*TemperatureList\[K\].*$", re.MULTILINE)
+    mess_header = surf.mess_header
+    if not line_regex.search(mess_header):
+        msg = f"No TemperatureList[K] line found in MESS header: {mess_header}"
+        raise ValueError(msg)
+    surf.mess_header = line_regex.sub(line, mess_header)
     return surf
 
 
