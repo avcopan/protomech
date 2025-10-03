@@ -52,13 +52,13 @@ class Feature(pydantic.BaseModel, ABC):
         zero_energy_regex = re.compile(r"^\s*ZeroEnergy.*$", flags=re.MULTILINE)
         comment_energy_regex = re.compile(r"^\s*!\s*ZeroEnergy.*$", flags=re.MULTILINE)
         if ground_energy_regex.search(mess_body):
-            energy_line = f"  GroundEnergy[kcal/mol]      {energy:.2f}"
+            energy_line = f"    GroundEnergy[kcal/mol]      {energy:.2f}"
             self.mess_body = ground_energy_regex.sub(energy_line, mess_body)
         elif zero_energy_regex.search(mess_body):
-            energy_line = f"    ZeroEnergy[kcal/mol]      {energy:.2f}"
+            energy_line = f"      ZeroEnergy[kcal/mol]      {energy:.2f}"
             self.mess_body = zero_energy_regex.sub(energy_line, mess_body)
         elif comment_energy_regex.search(mess_body):
-            energy_line = f"    ZeroEnergy[kcal/mol]      {energy:.2f}"
+            energy_line = f"      ZeroEnergy[kcal/mol]      {energy:.2f}"
             self.mess_body = comment_energy_regex.sub(energy_line, mess_body)
         else:
             msg = f"Unable to find GroundEnergy or ZeroEnergy line in MESS body:\n{self.mess_body}"
@@ -595,6 +595,28 @@ def merge_resonant_instabilities(surf: Surface, mech: Mechanism) -> Surface:
                 drop_keys.update(conn_path[1:])
 
     surf = remove_nodes(surf, drop_keys - keep_keys)
+    return surf
+
+
+def correct_fake_well_energies(surf: Surface, in_place: bool = False) -> Surface:
+    """Correct fake well energies to fall below their lowest associated barrier.
+
+    :param surf: Surface
+    :return: Surface
+    """
+    surf = surf if in_place else surf.model_copy(deep=True)
+    gra = graph(surf)
+    # Loop over fake nodes
+    for node in surf.nodes:
+        if node.fake:
+            key = node.key
+            edges = [edge_object(surf, [key, nkey]) for nkey in gra[key]]
+            # Determine the energy 3 kcal/mol below the lowest barrier
+            energy = min(e.energy for e in edges) - 3
+            # If this is less than the current node energy, update it
+            if energy < node.energy:
+                node.energy = energy
+                node.update_mess_body_energy()
     return surf
 
 
