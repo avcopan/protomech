@@ -6,7 +6,7 @@
 [subrepo]
 	remote = git@github.com:avcopan/autochem.git
 	branch = dev
-	commit = ee19f64589d60657a963ede20ede3b34b65a6f63
-	parent = 46a0a0061794ed3461af90b2c8005a8ac9ba1a9d
+	commit = d518f8f4cf515a600bf8335028f28e14a94ecc95
+	parent = 25af4eeefe0fad3f02bd6d616b63484eb24cca65
 	method = rebase
 	cmdver = 0.4.9
