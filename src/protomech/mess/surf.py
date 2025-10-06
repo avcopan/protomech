@@ -18,7 +18,7 @@ from automech import Mechanism
 from automech.reaction import Reaction
 
 from ..util import sequence
-from . import io
+from . import inp
 
 
 class Feature(pydantic.BaseModel, ABC):
@@ -772,10 +772,10 @@ def from_mess_input(mess_inp: str | Path) -> Surface:
     :return: Surface
     """
     # Parse header
-    header = io.parse_header(mess_inp)
+    header = inp.parse_header(mess_inp)
 
     # Parse blocks and separate node and edge data
-    block_data = io.parse_blocks(mess_inp)
+    block_data = inp.parse_blocks(mess_inp)
     node_block_data = [d for d in block_data if d.type in ("Well", "Bimolecular")]
     edge_block_data = [d for d in block_data if d.type == "Barrier"]
 
@@ -805,7 +805,7 @@ def mess_input(surf: Surface) -> str:
 
 # Helpers
 def node_from_mess_block_parse_data(
-    block_data: io.MessBlockParseData, key_dct: dict[str, int]
+    block_data: inp.MessBlockParseData, key_dct: dict[str, int]
 ) -> Node:
     """Generate Well object from block.
 
@@ -850,7 +850,7 @@ def node_from_mess_block_parse_data(
 
 
 def edge_from_mess_block_parse_data(
-    block_data: io.MessBlockParseData, key_dct: dict[str, int]
+    block_data: inp.MessBlockParseData, key_dct: dict[str, int]
 ) -> Edge:
     """Generate Barrier object from block.
 

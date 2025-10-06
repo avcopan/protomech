@@ -1,4 +1,4 @@
-"""Read MESS file format."""
+"""Read MESS input file."""
 
 import re
 from pathlib import Path
