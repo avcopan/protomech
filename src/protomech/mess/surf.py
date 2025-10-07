@@ -1,4 +1,6 @@
+import functools
 import itertools
+import operator
 import re
 import textwrap
 from abc import ABC, abstractmethod
@@ -11,6 +13,7 @@ import autochem as ac
 import automol
 import more_itertools as mit
 import networkx as nx
+import numpy as np
 import polars as pl
 import pydantic
 from autochem.rate.data import Rate, RateFit
@@ -147,7 +150,7 @@ class Surface(pydantic.BaseModel):
 
     nodes: list[Node]
     edges: list[Edge]
-    rates: dict[tuple[int, int], Rate | RateFit] = {}
+    rates: dict[tuple[int, int], Rate] = {}
 
     mess_header: str
 
@@ -432,9 +435,11 @@ def remove_nodes(surf: Surface, keys: Collection[int]) -> Surface:
     :param keys: Keys of nodes to remove
     :return: Surface
     """
+    keys = set(keys)
     nodes = [n for n in surf.nodes if n.key not in keys]
-    edges = [e for e in surf.edges if not e.key & set(keys)]
-    return Surface(nodes=nodes, edges=edges, mess_header=surf.mess_header)
+    edges = [e for e in surf.edges if not e.key & keys]
+    rates = {k: v for k, v in surf.rates.items() if not set(k) & keys}
+    return Surface(nodes=nodes, edges=edges, mess_header=surf.mess_header, rates=rates)
 
 
 def remove_edges(surf: Surface, keys: Collection[Collection[int]]) -> Surface:
@@ -446,7 +451,10 @@ def remove_edges(surf: Surface, keys: Collection[Collection[int]]) -> Surface:
     """
     keys = list(map(frozenset, keys))
     edges = [e for e in surf.edges if e.key not in keys]
-    return Surface(nodes=surf.nodes, edges=edges, mess_header=surf.mess_header)
+    rates = {k: v for k, v in surf.rates.items() if frozenset(k) not in keys}
+    return Surface(
+        nodes=surf.nodes, edges=edges, mess_header=surf.mess_header, rates=rates
+    )
 
 
 def extend(
@@ -461,7 +469,9 @@ def extend(
     """
     nodes = [*surf.nodes, *nodes]
     edges = [*surf.edges, *edges]
-    return Surface(nodes=nodes, edges=edges, mess_header=surf.mess_header)
+    return Surface(
+        nodes=nodes, edges=edges, mess_header=surf.mess_header, rates=surf.rates
+    )
 
 
 def node_induced_subsurface(surf: Surface, keys: Collection[int]) -> Surface:
@@ -474,7 +484,9 @@ def node_induced_subsurface(surf: Surface, keys: Collection[int]) -> Surface:
     keys = set(keys)
     nodes = [n for n in surf.nodes if n.key in keys]
     edges = [e for e in surf.edges if e.key <= keys]
-    return Surface(nodes=nodes, edges=edges, mess_header=surf.mess_header)
+    return Surface(
+        nodes=nodes, edges=edges, mess_header=surf.mess_header, rates=surf.rates
+    )
 
 
 def split_stoichiometries(surf: Surface, mech: Mechanism) -> dict[str, Surface]:
@@ -753,6 +765,11 @@ def combine(surfs: Sequence[Surface]) -> Surface:
 
     edges = list(mit.unique_everseen(all_edges, key=lambda e: e.key))
 
+    for surf in surfs:
+        if surf.rates:
+            msg = f"Cannot combine surface with rates: {surf}"
+            raise NotImplementedError(msg)
+
     return Surface(nodes=nodes, edges=edges, mess_header=mess_header)
 
 
@@ -810,6 +827,56 @@ def with_mess_output_rates(surf: Surface, mess_out: str | Path) -> Surface:
             )
             surf.rates[(node1.key, node2.key)] = rate
 
+    return surf
+
+
+def absorb_fake_wells_with_rates(surf: Surface) -> Surface:
+    """Remove fake wells and integrate their rates.
+
+    :param surf: Surface
+    :return: Surface
+    """
+    surf = surf.model_copy(deep=True)
+    gra = graph(surf)
+    fake_keys = set(fake_well_keys(surf))
+    for edge in surf.edges:
+        if edge.fake:
+            (fake_key,) = edge.key & fake_keys
+            (prod_key,) = edge.key - fake_keys
+            reac_keys = set(gra[fake_key]) - {prod_key}
+            for reac_key in reac_keys:
+                # 1. Add r -> f rate to r -> p rate
+                surf.rates[(reac_key, prod_key)] += surf.rates[(reac_key, fake_key)]
+                surf.rates[(reac_key, fake_key)] *= 0.0
+                # 2. Directly connect r -> p
+                real_edge = edge_object(surf, [reac_key, fake_key])
+                real_edge.key = frozenset([reac_key, prod_key])
+            # 3. Drop the fake edge and node
+            surf = remove_edges(surf, [(fake_key, prod_key)])
+            surf = remove_nodes(surf, [fake_key])
+
+    return surf
+
+
+def drop_irrelevant_well_skipping_rates(surf: Surface, thresh: float = 0.01) -> Surface:
+    """Drop irrelevant well-skipping rates according to a threshold.
+
+    :param surf: Surface
+    :param thresh: Branching fraction threshold for including a well-skipping rate
+    :return: Surface
+    """
+    surf = surf.model_copy(deep=True)
+    edge_keys = [e.key for e in surf.edges]
+    for key1 in node_keys(surf):
+        exit_rates = {(k1, k2): v for (k1, k2), v in surf.rates.items() if k1 == key1}
+        total_rate = functools.reduce(operator.add, exit_rates.values())
+        skip_rates = {
+            k: v for k, v in exit_rates.items() if frozenset(k) not in edge_keys
+        }
+        for rate_key, rate in skip_rates.items():
+            max_frac = np.nanmax(rate.k_data / total_rate.k_data)
+            if max_frac < thresh:
+                surf.rates.pop(rate_key)
     return surf
 
 
