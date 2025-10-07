@@ -24,7 +24,9 @@ class MessRateParseData(BaseModel):
     k_high: list[float]
 
 
-def rate_data(mess_out: str | Path) -> list[ac.util.mess.MessOutputChannelParseResults]:
+def rate_data_parse_results(
+    mess_out: str | Path,
+) -> list[ac.util.mess.MessOutputChannelParseResults]:
     """Parse rate data.
 
     :param mess_out: MESS output
@@ -34,11 +36,11 @@ def rate_data(mess_out: str | Path) -> list[ac.util.mess.MessOutputChannelParseR
     blocks = rate_blocks(mess_out)
     rates = []
     for block in blocks:
-        rate = ac.util.mess.parse_output_channel(block)
-        if rate.id1 and rate.id2:
-            rate.id1 = trans_dct[rate.id1]
-            rate.id2 = trans_dct[rate.id2]
-            rates.append(rate)
+        res = ac.util.mess.parse_output_channel(block)
+        if res.id1 and res.id2:
+            res.id1 = trans_dct[res.id1]
+            res.id2 = trans_dct[res.id2]
+            rates.append(res)
     return rates
 
 

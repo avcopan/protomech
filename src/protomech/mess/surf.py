@@ -7,18 +7,20 @@ from collections.abc import Collection, Mapping, Sequence
 from pathlib import Path
 from typing import Annotated, Literal
 
+import autochem as ac
 import automol
 import more_itertools as mit
 import networkx as nx
 import polars as pl
 import pydantic
+from autochem.rate.data import Rate, RateFit
 
 import automech
 from automech import Mechanism
 from automech.reaction import Reaction
 
 from ..util import sequence
-from . import inp
+from . import inp, out
 
 
 class Feature(pydantic.BaseModel, ABC):
@@ -145,6 +147,7 @@ class Surface(pydantic.BaseModel):
 
     nodes: list[Node]
     edges: list[Edge]
+    rates: dict[tuple[int, int], Rate | RateFit] = {}
 
     mess_header: str
 
@@ -785,6 +788,29 @@ def from_mess_input(mess_inp: str | Path) -> Surface:
     edges = [edge_from_mess_block_parse_data(d, key_dct) for d in edge_block_data]
 
     return Surface(nodes=nodes, edges=edges, mess_header=header)
+
+
+def with_mess_output_rates(surf: Surface, mess_out: str | Path) -> Surface:
+    """Add MESS output data to a surface.
+
+    :param surf: Surface
+    :param mess_out: MESS output
+    :return: Surface
+    """
+    surf = surf.model_copy(deep=True)
+    trans_dct = out.translation_table(mess_out)
+    blocks = out.rate_blocks(mess_out)
+    for block in blocks:
+        res = ac.util.mess.parse_output_channel(block)
+        if res.id1 and res.id2:
+            node1 = node_object_from_label(surf, trans_dct[res.id1])
+            node2 = node_object_from_label(surf, trans_dct[res.id2])
+            rate = ac.rate.data.from_mess_channel_output(
+                block, order=len(node1.names_list)
+            )
+            surf.rates[(node1.key, node2.key)] = rate
+
+    return surf
 
 
 def mess_input(surf: Surface) -> str:
