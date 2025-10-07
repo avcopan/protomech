@@ -151,6 +151,7 @@ class Surface(pydantic.BaseModel):
     nodes: list[Node]
     edges: list[Edge]
     rates: dict[tuple[int, int], Rate] = {}
+    rate_fits: dict[tuple[int, int], RateFit] = {}
 
     mess_header: str
 
@@ -877,6 +878,32 @@ def drop_irrelevant_well_skipping_rates(surf: Surface, thresh: float = 0.01) -> 
             max_frac = np.nanmax(rate.k_data / total_rate.k_data)
             if max_frac < thresh:
                 surf.rates.pop(rate_key)
+    return surf
+
+
+def fit_rates(surf: Surface, tol: float = 0.2) -> Surface:
+    """Fit rates to Arrhenius or Plog.
+
+    :param surf: Surface
+    :param tol: Threshold for determining pressure dependence
+    :return: Surface
+    """
+    surf = surf.model_copy(deep=True)
+    surf.rate_fits = {}
+    for rate_key, rate in surf.rates.items():
+        if rate.is_pressure_dependent(tol=tol):
+            rate_fit = ac.rate.data.PlogRateFit.fit(
+                T=rate.T,
+                P=rate.P,
+                k_data=rate.k_data,
+                k_high=rate.k_high,
+                order=rate.order,
+            )
+        else:
+            rate_fit = ac.rate.data.ArrheniusRateFit.fit(
+                T=rate.T, k=rate.high_pressure_values(), order=rate.order
+            )
+        surf.rate_fits[rate_key] = rate_fit
     return surf
 
 
