@@ -859,24 +859,38 @@ def absorb_fake_wells_with_rates(surf: Surface) -> Surface:
     return surf
 
 
-def drop_irrelevant_well_skipping_rates(surf: Surface, thresh: float = 0.01) -> Surface:
+def drop_irrelevant_well_skipping_rates(
+    surf: Surface,
+    f_min: float = 0.01,
+    T_vals: Sequence[float] = (500, 100),
+    P_vals: Sequence[float] = (0.1, 1, 100),
+) -> Surface:
     """Drop irrelevant well-skipping rates according to a threshold.
 
     :param surf: Surface
-    :param thresh: Branching fraction threshold for including a well-skipping rate
+    :param f_min: Minimum branching fraction for inclusion
+    :param T_min: Minimum temperature for assessing branching fraction
     :return: Surface
     """
     surf = surf.model_copy(deep=True)
     edge_keys = [e.key for e in surf.edges]
     for key1 in node_keys(surf):
-        exit_rates = {(k1, k2): v for (k1, k2), v in surf.rates.items() if k1 == key1}
+        exit_rates = {
+            (k1, k2): v.fill_nan(nan=0.0)
+            for (k1, k2), v in surf.rates.items()
+            if k1 == key1
+        }
         total_rate = functools.reduce(operator.add, exit_rates.values())
         skip_rates = {
             k: v for k, v in exit_rates.items() if frozenset(k) not in edge_keys
         }
+        # If the branching fraction is below the threshold, drop it
         for rate_key, rate in skip_rates.items():
-            max_frac = np.nanmax(rate.k_data / total_rate.k_data)
-            if max_frac < thresh:
+            with np.errstate(divide="ignore", invalid="ignore"):
+                branch_frac = rate(T=T, P=P) / total_rate(T=T, P=P)
+                branch_frac[~np.isfinite(branch_frac)] = 0.0
+            max_frac = np.max(branch_frac)
+            if max_frac < f_min:
                 surf.rates.pop(rate_key)
     return surf
 
