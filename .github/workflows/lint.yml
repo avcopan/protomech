@@ -18,10 +18,11 @@ jobs:
 
       # Environment
       - name: Install environment with pixi
-        uses: prefix-dev/setup-pixi@v0.9.0
+        uses: prefix-dev/setup-pixi@v0.9.1
         with:
           environments: all
+          frozen: true
 
       # Lint
       - name: Lint
-        run: pixi run lint
+        run: pixi run --frozen lint
