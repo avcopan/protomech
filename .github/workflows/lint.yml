@@ -25,4 +25,4 @@ jobs:
 
       # Lint
       - name: Lint
-        run: pixi run --frozen lint
+        run: pixi run --frozen -e all lint
