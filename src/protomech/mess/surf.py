@@ -1048,6 +1048,79 @@ def fit_rates(surf: Surface, tol: float = 0.2) -> Surface:
     return surf
 
 
+def match_rate_directions(surf: Surface, mech: Mechanism) -> Surface:
+    """Picks a direction and drops the reverse rate based on an existing mechanism.
+
+    :param surf: Surface
+    :param mech: Mechanism
+    :return: Surface
+    """
+    # Generate a dictionary mapping edge keys to rate keys
+    rate_key_pair_dct = defaultdict(list)
+    for rate_key in surf.rates.keys():
+        rate_key_pair_dct[frozenset(rate_key)].append(rate_key)
+    rate_key_pair_dct = {k: sorted(v) for k, v in rate_key_pair_dct.items()}
+
+    # Give a warning if there are unpaired rate keys
+    unpaired_rate_key = next(
+        (ks for ks in rate_key_pair_dct.values() if len(ks) != 2), None
+    )
+    if unpaired_rate_key is not None:
+        msg = f"Cannot drop reverse rates with unpaired rate key: {unpaired_rate_key}"
+        raise ValueError(msg)
+
+    rcts = list(map(sorted, mech.reactions.get_column(Reaction.reactants).to_list()))
+    prds = list(map(sorted, mech.reactions.get_column(Reaction.products).to_list()))
+    rxns = list(zip(rcts, prds, strict=True))
+
+    node_dct = {n.key: n for n in surf.nodes}
+
+    # 1. Loop over edges to identify the directions of direct reactions
+    rate_keys = []
+    direct_keys = edge_keys(surf)
+    for direct_key in direct_keys:
+        found = False
+        for rate_key in rate_key_pair_dct[direct_key]:
+            key1, key2 = rate_key
+            rct = sorted(node_dct[key1].names_list)
+            prd = sorted(node_dct[key2].names_list)
+            rxn = (rct, prd)
+            rxn = next((r for r in rxns if r == rxn), None)
+            if rxn:
+                rate_keys.append(rate_key)
+                found = True
+                break
+
+        if not found:
+            msg = f"No matching reaction found for edge {direct_key}"
+            raise ValueError(msg)
+
+    # 2. Choose well skipping directions based to maximize a "score", defined as
+    #    (nr != 0, np != 0, nr + np, nr, np), where nr is the number of time the
+    #    first node appears as a reactant and np is the number of time the
+    #    second node appears as a product in the mechanism
+    score_dct = {}
+    skip_keys = set(rate_key_pair_dct.keys()) - set(direct_keys)
+    rct_keys, prd_keys = zip(*rate_keys, strict=True)
+    for skip_key in skip_keys:
+        rate_key_pair = rate_key_pair_dct[skip_key]
+
+        # Calculate scores for each
+        for rate_key in rate_key_pair:
+            key1, key2 = rate_key
+            nr = rct_keys.count(key1)
+            np = prd_keys.count(key2)
+            score = (nr != 0, np != 0, nr + np, nr, np)
+            score_dct[rate_key] = score
+
+        rate_key = max(rate_key_pair, key=score_dct.get)
+        rate_keys.append(rate_key)
+
+    rates = {k: v for k, v in surf.rates.items() if k in rate_keys}
+    rate_fits = {k: v for k, v in surf.rate_fits.items() if k in rate_keys}
+    return surf.model_copy(update={"rates": rates, "rate_fits": rate_fits})
+
+
 def mess_input(surf: Surface) -> str:
     """MESS input for surface.
 
