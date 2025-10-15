@@ -199,6 +199,10 @@ def reaction_rate_objects(rxn_df: polars.DataFrame, eq: str) -> list[ac.rate.Rea
     tmp_col = c_.temp()
     rxn_df = with_equation_match_column(rxn_df, col=tmp_col, eqs=[eq])
     rxn_df = rxn_df.filter(polars.col(tmp_col)).drop(tmp_col)
+    rxn_df = rxn_df.filter(
+        polars.col(ReactionRate.rate).is_not_null()
+        & polars.col(ReactionRate.reversible).is_not_null()
+    )
     rxn_df = with_rate_objects(rxn_df, col=tmp_col)
     return rxn_df.get_column(tmp_col).to_list()
 
