@@ -202,6 +202,12 @@ def direct_rate_keys(surf: Surface) -> list[tuple[int, int]]:
     return [k for k in surf.rates.keys() if frozenset(k) in edge_keys_]
 
 
+def well_skipping_rate_keys(surf: Surface) -> list[tuple[int, int]]:
+    """Keys for direct rates."""
+    edge_keys_ = edge_keys(surf)
+    return [k for k in surf.rates.keys() if frozenset(k) not in edge_keys_]
+
+
 def node_label_dict(surf: Surface) -> dict[int, str]:
     """Node labels for the surface."""
     return {n.key: n.label for n in surf.nodes}
@@ -266,6 +272,21 @@ def edge_object(
         msg = f"Key {key} is not associated with an edge:\n{surf.model_dump()}"
         raise ValueError(msg)
     return edge
+
+
+def edge_chemkin_equation(surf: Surface, key: Collection[int]) -> str:
+    """Look up node object by key
+
+    :param surf: Surface
+    :param key: Key
+    :return: Node
+    """
+    key1, key2 = key if isinstance(key, Sequence) else sorted(key)
+    node1 = node_object(surf, key1)
+    node2 = node_object(surf, key2)
+    reac = " + ".join(node1.names_list)
+    prod = " + ".join(node2.names_list)
+    return " = ".join([reac, prod])
 
 
 def get_node_object(
