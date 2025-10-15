@@ -191,6 +191,17 @@ def node_keys(surf: Surface, labels: Collection[str] | None = None) -> list[int]
     return [n.key for n in surf.nodes]
 
 
+def edge_keys(surf: Surface) -> list[frozenset[int]]:
+    """Node keys for the surface."""
+    return [e.key for e in surf.edges]
+
+
+def direct_rate_keys(surf: Surface) -> list[tuple[int, int]]:
+    """Keys for direct rates."""
+    edge_keys_ = edge_keys(surf)
+    return [k for k in surf.rates.keys() if frozenset(k) in edge_keys_]
+
+
 def node_label_dict(surf: Surface) -> dict[int, str]:
     """Node labels for the surface."""
     return {n.key: n.label for n in surf.nodes}
@@ -456,6 +467,38 @@ def remove_edges(surf: Surface, keys: Collection[Collection[int]]) -> Surface:
     return Surface(
         nodes=surf.nodes, edges=edges, mess_header=surf.mess_header, rates=rates
     )
+
+
+def remove_isolates(surf: Surface) -> Surface:
+    """Remove isolated nodes from surface.
+
+    :param surf: Surface
+    :return: Surface
+    """
+    return remove_nodes(surf, keys=list(nx.isolates(graph(surf))))
+
+
+def remove_well_skipping_rates(
+    surf: Surface, keys: Collection[Collection[int]]
+) -> Surface:
+    """Remove well skipping rates.
+
+    :param surf: Surface
+    :param keys: Keys of well-skipping rates to remove
+    :return: Surface
+    """
+    edge_keys_ = edge_keys(surf)
+    for key in keys:
+        if frozenset(key) in edge_keys_:
+            msg = f"Rate {key} belongs to an edge and is not well-skipping."
+            raise ValueError(msg)
+
+    drop_keys = list(map(tuple, map(sorted, keys)))
+    drop_keys = [*drop_keys, *map(tuple, map(reversed, drop_keys))]
+
+    surf = surf.model_copy(deep=True)
+    surf.rates = {k: v for k, v in surf.rates.items() if k not in drop_keys}
+    return surf
 
 
 def extend(
@@ -847,7 +890,9 @@ def absorb_fake_wells_with_rates(surf: Surface) -> Surface:
             reac_keys = set(gra[fake_key]) - {prod_key}
             for reac_key in reac_keys:
                 # 1. Add r -> f rate to r -> p rate
-                surf.rates[(reac_key, prod_key)] += surf.rates[(reac_key, fake_key)]
+                surf.rates[(reac_key, prod_key)] += surf.rates[
+                    (reac_key, fake_key)
+                ].fill_nan(nan=0.0)
                 surf.rates[(reac_key, fake_key)] *= 0.0
                 # 2. Directly connect r -> p
                 real_edge = edge_object(surf, [reac_key, fake_key])
@@ -859,40 +904,100 @@ def absorb_fake_wells_with_rates(surf: Surface) -> Surface:
     return surf
 
 
-def drop_irrelevant_well_skipping_rates(
-    surf: Surface,
-    f_min: float = 0.01,
-    T_vals: Sequence[float] = (500, 100),
-    P_vals: Sequence[float] = (0.1, 1, 100),
-) -> Surface:
-    """Drop irrelevant well-skipping rates according to a threshold.
+def fittable_pressures(surf: Surface) -> dict[tuple[int, int], list[float]]:
+    """Determine fittable pressures for each rate.
 
     :param surf: Surface
-    :param f_min: Minimum branching fraction for inclusion
-    :param T_min: Minimum temperature for assessing branching fraction
+    :return: Fittable pressures
+    """
+    P_fit_dct = {}
+    for rate_key, rate in surf.rates.items():
+        P_fit_dct[rate_key] = rate.fittable_pressures()
+    return P_fit_dct
+
+
+def unfittable_rate_keys(
+    surf: Surface,
+    *,
+    direct: bool = True,
+    well_skipping: bool = True,
+    P_vals: Collection[float] | None = None,
+) -> list[tuple[int, int]]:
+    """Identify unfittable rates.
+
+    :param surf: Surface
+    :param min_P_count: Minimum acceptable fittable pressure count
     :return: Surface
     """
+    edge_keys_ = edge_keys(surf)
+    fit_press_dct = fittable_pressures(surf)
+    unfit_keys = []
+    for rate_key, P_fit in fit_press_dct.items():
+        edge_key = frozenset(rate_key)
+        is_unfittable = not (
+            bool(P_fit)
+            if P_vals is None
+            else all(np.any(np.isclose(P, P_fit)) for P in P_vals)
+        )
+        is_direct = edge_key in edge_keys_
+        is_included = direct if is_direct else well_skipping
+        if is_unfittable and is_included:
+            unfit_keys.append(rate_key)
+    return unfit_keys
+
+
+def branching_fractions(
+    surf: Surface, T: Sequence[float], P: Sequence[float]
+) -> dict[tuple[int, int], np.ndarray]:
+    """Determine branching fraction for each rate.
+
+    :param surf: Surface
+    :param T: Temperatures for evaluating branching fraction
+    :param P: Pressures for evaluating branching fraction
+    :return: Branching fractions
+    """
     surf = surf.model_copy(deep=True)
-    edge_keys = [e.key for e in surf.edges]
+    frac_dct = {}
     for key1 in node_keys(surf):
-        exit_rates = {
-            (k1, k2): v.fill_nan(nan=0.0)
-            for (k1, k2), v in surf.rates.items()
-            if k1 == key1
-        }
-        total_rate = functools.reduce(operator.add, exit_rates.values())
-        skip_rates = {
-            k: v for k, v in exit_rates.items() if frozenset(k) not in edge_keys
-        }
+        rates = {(k1, k2): v for (k1, k2), v in surf.rates.items() if k1 == key1}
+        total_rate = functools.reduce(
+            operator.add, [r.fill_nan(nan=0.0) for r in rates.values()]
+        )
         # If the branching fraction is below the threshold, drop it
-        for rate_key, rate in skip_rates.items():
+        for rate_key, rate in rates.items():
             with np.errstate(divide="ignore", invalid="ignore"):
                 branch_frac = rate(T=T, P=P) / total_rate(T=T, P=P)
-                branch_frac[~np.isfinite(branch_frac)] = 0.0
-            max_frac = np.max(branch_frac)
-            if max_frac < f_min:
-                surf.rates.pop(rate_key)
-    return surf
+            frac_dct[rate_key] = branch_frac
+    return frac_dct
+
+
+def irrelevant_rate_keys(
+    surf: Surface,
+    T: Sequence[float],
+    P: Sequence[float],
+    *,
+    direct: bool = True,
+    well_skipping: bool = True,
+    min_branch_frac: float = 0.01,
+) -> list[tuple[int, int]]:
+    """Identify irrelevant rates by branching fraction.
+
+    :param surf: Surface
+    :param min_branch_frac: Minimum acceptable branching fraction
+    :return: Surface
+    """
+    edge_keys_ = edge_keys(surf)
+    branch_fracs_dct = branching_fractions(surf, T=T, P=P)
+    irrel_keys = []
+    for rate_key, branch_fracs in branch_fracs_dct.items():
+        edge_key = frozenset(rate_key)
+        max_branch_frac = np.nanmax(np.nan_to_num(branch_fracs, nan=0.0))
+        is_irrelevant = max_branch_frac >= min_branch_frac
+        is_direct = edge_key in edge_keys_
+        is_included = direct if is_direct else well_skipping
+        if not is_irrelevant and is_included:
+            irrel_keys.append(rate_key)
+    return irrel_keys
 
 
 def fit_rates(surf: Surface, tol: float = 0.2) -> Surface:
@@ -906,6 +1011,7 @@ def fit_rates(surf: Surface, tol: float = 0.2) -> Surface:
     surf.rate_fits = {}
     for rate_key, rate in surf.rates.items():
         if rate.is_pressure_dependent(tol=tol):
+            rate = rate.drop_unfittable_pressures()
             rate_fit = ac.rate.data.PlogRateFit.fit(
                 T=rate.T,
                 P=rate.P,
