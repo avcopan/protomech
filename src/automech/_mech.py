@@ -144,6 +144,30 @@ def reaction_rate_objects(mech: Mechanism, eq: str) -> list[ac.rate.Reaction]:
     return reaction.reaction_rate_objects(mech.reactions, eq=eq)
 
 
+def reaction_amchis(mech: Mechanism, eq: str) -> list[tuple[list[str], list[str]]]:
+    """Get rate objects associated with one reaction.
+
+    :param rxn_df: Reaction DataFrame
+    :param eq: Equation
+    :return: Rate objects
+    """
+    spc_df = mech.species
+    rxn_df = mech.reactions
+    obj_col = c_.temp()
+    rxn_df = reaction.with_equation_match_column(rxn_df, col=obj_col, eqs=[eq])
+    rxn_df = rxn_df.filter(polars.col(obj_col)).drop(obj_col)
+
+    rct_col, prd_col = c_.temp(), c_.temp()
+    names = spc_df.get_column(Species.name)
+    amchis = spc_df.get_column(Species.amchi)
+    rxn_df = reaction.translate_reagents(
+        rxn_df, names, amchis, rct_col=rct_col, prd_col=prd_col
+    )
+    rct_vals = rxn_df.get_column(rct_col).to_list()
+    prd_vals = rxn_df.get_column(prd_col).to_list()
+    return list(zip(rct_vals, prd_vals, strict=True))
+
+
 def species_names(
     mech: Mechanism,
     rxn_only: bool = False,
