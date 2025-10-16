@@ -1060,7 +1060,9 @@ def irrelevant_rate_keys(
     return irrel_keys
 
 
-def fit_rates(surf: Surface, tol: float = 0.2) -> Surface:
+def fit_rates(
+    surf: Surface, T_drop: Sequence[float] = (), P_dep_tol: float = 0.2
+) -> Surface:
     """Fit rates to Arrhenius or Plog.
 
     :param surf: Surface
@@ -1070,7 +1072,10 @@ def fit_rates(surf: Surface, tol: float = 0.2) -> Surface:
     surf = surf.model_copy(deep=True)
     surf.rate_fits = {}
     for rate_key, rate in surf.rates.items():
-        if rate.is_pressure_dependent(tol=tol):
+        if T_drop:
+            rate = rate.drop_temperatures(T_drop)
+
+        if rate.is_pressure_dependent(tol=P_dep_tol):
             rate = rate.drop_unfittable_pressures()
             rate_fit = ac.rate.data.PlogRateFit.fit(
                 T=rate.T,
