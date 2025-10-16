@@ -213,13 +213,37 @@ def node_label_dict(surf: Surface) -> dict[int, str]:
     return {n.key: n.label for n in surf.nodes}
 
 
-def fake_well_keys(surf: Surface) -> list[int]:
+def fake_node_keys(surf: Surface) -> list[int]:
     """Keys of fake wells in surface.
 
     :param surf: Surface
     :return: Keys of fake wells
     """
     return [n.key for n in surf.nodes if n.fake]
+
+
+def fake_edge_keys(surf: Surface) -> list[frozenset[int]]:
+    """Keys of fake wells in surface.
+
+    :param surf: Surface
+    :return: Keys of fake wells
+    """
+    return [e.key for e in surf.edges if e.fake]
+
+
+def fake_node_bimol_keys(surf: Surface) -> dict[int, int]:
+    """Get mapping from fake nodes to bimolecular nodes whose complex they represent.
+
+    :param surf: Surface
+    :return: Mapping from fake nodes to bimolecular sources
+    """
+    bimol_dct = {}
+    fake_keys = set(fake_node_keys(surf))
+    for fake_edge_key in fake_edge_keys(surf):
+        (fake_key,) = fake_edge_key & fake_keys
+        (real_key,) = fake_edge_key - fake_keys
+        bimol_dct[fake_key] = real_key
+    return bimol_dct
 
 
 def node_object_from_label(surf: Surface, label: str) -> Node:
@@ -439,7 +463,7 @@ def set_no_fake_well_extension(surf: Surface) -> Surface:
     :param surf: Surface
     :return: Surface
     """
-    return set_no_well_extension(surf, fake_well_keys(surf))
+    return set_no_well_extension(surf, fake_node_keys(surf))
 
 
 def set_no_well_extension(surf: Surface, keys: Sequence[int]) -> Surface:
@@ -895,33 +919,48 @@ def with_mess_output_rates(surf: Surface, mess_out: str | Path) -> Surface:
     return surf
 
 
-def absorb_fake_wells_with_rates(surf: Surface) -> Surface:
-    """Remove fake wells and integrate their rates.
+def absorb_fake_nodes(surf: Surface) -> Surface:
+    """Absorb fake wells and integrate their rates.
+
+    Case 1 (2 reactants, 2 products):
+
+        Initial:    other_key (1) -> neib_key* (2) -> fake_key (3) -> bimol_key (4)
+        Final:      other_key (1) -> bimol_key (4)
+        Rate:       rate(1->4) += rate(1->3)
+
+    Case 2 (1 reactant, 2 products):
+
+        Initial:    neib_key (1) -> fake_key (2) -> bimol_key (3)
+        Final:      neib_key (1) -> bimol_key (3)
+        Rate:       rate(1->3) += rate(1->2)
 
     :param surf: Surface
     :return: Surface
     """
     surf = surf.model_copy(deep=True)
     gra = graph(surf)
-    fake_keys = set(fake_well_keys(surf))
-    for edge in surf.edges:
-        if edge.fake:
-            (fake_key,) = edge.key & fake_keys
-            (prod_key,) = edge.key - fake_keys
-            reac_keys = set(gra[fake_key]) - {prod_key}
-            for reac_key in reac_keys:
-                # 1. Add r -> f rate to r -> p rate
-                surf.rates[(reac_key, prod_key)] += surf.rates[
-                    (reac_key, fake_key)
-                ].fill_nan(nan=0.0)
-                surf.rates[(reac_key, fake_key)] *= 0.0
-                # 2. Directly connect r -> p
-                real_edge = edge_object(surf, [reac_key, fake_key])
-                real_edge.key = frozenset([reac_key, prod_key])
-            # 3. Drop the fake edge and node
-            surf = remove_edges(surf, [(fake_key, prod_key)])
-            surf = remove_nodes(surf, [fake_key])
 
+    edge_dct = {}
+    bimol_dct = fake_node_bimol_keys(surf)
+    for fake_key, bimol_key in bimol_dct.items():
+        neib_keys = set(gra[fake_key]) - {bimol_key}
+        for neib_key in neib_keys:
+            edge = edge_object(surf, {fake_key, neib_key}, copy=True)
+            other_key = neib_key
+            # Case 1 (2 reactants, 2 products)
+            if neib_key in bimol_dct:
+                other_key = bimol_dct[neib_key]
+                add_rate = surf.rates[(other_key, fake_key)].fill_nan(nan=0.0)
+                surf.rates[(other_key, bimol_key)] += add_rate
+            # Case 2 (1 reactant, 2 products)
+            else:
+                add_rate = surf.rates[(neib_key, fake_key)].fill_nan(nan=0.0)
+                surf.rates[(neib_key, bimol_key)] += add_rate
+            edge.key = frozenset({other_key, bimol_key})
+            edge_dct[edge.key] = edge
+
+    surf = extend(surf, edges=edge_dct.values())
+    surf = remove_nodes(surf, keys=bimol_dct.keys())
     return surf
 
 
@@ -1059,7 +1098,9 @@ def match_rate_directions(surf: Surface, mech: Mechanism) -> Surface:
     rate_key_pair_dct = defaultdict(list)
     for rate_key in surf.rates.keys():
         rate_key_pair_dct[frozenset(rate_key)].append(rate_key)
-    rate_key_pair_dct = {k: sorted(v) for k, v in rate_key_pair_dct.items()}
+    rate_key_pair_dct: dict[frozenset[int], list[tuple[int, int]]] = {
+        k: sorted(v) for k, v in rate_key_pair_dct.items()
+    }
 
     # Give a warning if there are unpaired rate keys
     unpaired_rate_key = next(
@@ -1069,8 +1110,8 @@ def match_rate_directions(surf: Surface, mech: Mechanism) -> Surface:
         msg = f"Cannot drop reverse rates with unpaired rate key: {unpaired_rate_key}"
         raise ValueError(msg)
 
-    rcts = list(map(sorted, mech.reactions.get_column(Reaction.reactants).to_list()))
-    prds = list(map(sorted, mech.reactions.get_column(Reaction.products).to_list()))
+    rcts = list(map(sorted, mech.reactions.get_column(Reaction.reactants).to_list()))  # pyright: ignore[reportArgumentType]
+    prds = list(map(sorted, mech.reactions.get_column(Reaction.products).to_list()))  # pyright: ignore[reportArgumentType]
     rxns = list(zip(rcts, prds, strict=True))
 
     node_dct = {n.key: n for n in surf.nodes}
@@ -1099,21 +1140,18 @@ def match_rate_directions(surf: Surface, mech: Mechanism) -> Surface:
     #    (nr != 0, np != 0, nr + np, nr, np), where nr is the number of time the
     #    first node appears as a reactant and np is the number of time the
     #    second node appears as a product in the mechanism
-    score_dct = {}
     skip_keys = set(rate_key_pair_dct.keys()) - set(direct_keys)
     rct_keys, prd_keys = zip(*rate_keys, strict=True)
+
+    def score(rate_key: tuple[int, int]) -> tuple[bool, bool, int, int, int]:
+        key1, key2 = rate_key
+        nr = rct_keys.count(key1)
+        np = prd_keys.count(key2)
+        return (nr != 0, np != 0, nr + np, nr, np)
+
     for skip_key in skip_keys:
         rate_key_pair = rate_key_pair_dct[skip_key]
-
-        # Calculate scores for each
-        for rate_key in rate_key_pair:
-            key1, key2 = rate_key
-            nr = rct_keys.count(key1)
-            np = prd_keys.count(key2)
-            score = (nr != 0, np != 0, nr + np, nr, np)
-            score_dct[rate_key] = score
-
-        rate_key = max(rate_key_pair, key=score_dct.get)
+        rate_key = max(rate_key_pair, key=score)
         rate_keys.append(rate_key)
 
     rates = {k: v for k, v in surf.rates.items() if k in rate_keys}
