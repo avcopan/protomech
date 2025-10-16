@@ -1061,7 +1061,10 @@ def irrelevant_rate_keys(
 
 
 def fit_rates(
-    surf: Surface, T_drop: Sequence[float] = (), P_dep_tol: float = 0.2
+    surf: Surface,
+    T_drop: Sequence[float] = (),
+    P_dep_tol: float = 0.2,
+    A_fill: float | None = None,
 ) -> Surface:
     """Fit rates to Arrhenius or Plog.
 
@@ -1076,17 +1079,17 @@ def fit_rates(
             rate = rate.drop_temperatures(T_drop)
 
         if rate.is_pressure_dependent(tol=P_dep_tol):
-            rate = rate.drop_unfittable_pressures()
             rate_fit = ac.rate.data.PlogRateFit.fit(
                 T=rate.T,
                 P=rate.P,
                 k_data=rate.k_data,
                 k_high=rate.k_high,
+                A_fill=A_fill,
                 order=rate.order,
             )
         else:
             rate_fit = ac.rate.data.ArrheniusRateFit.fit(
-                T=rate.T, k=rate.high_pressure_values(), order=rate.order
+                T=rate.T, k=rate.high_pressure_values(), A_fill=A_fill, order=rate.order
             )
         surf.rate_fits[rate_key] = rate_fit
     return surf
