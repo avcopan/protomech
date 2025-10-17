@@ -196,6 +196,128 @@ def edge_keys(surf: Surface) -> list[frozenset[int]]:
     return [e.key for e in surf.edges]
 
 
+def enantiomer_name(name: str, suffix0: str = "0", suffix1: str = "1") -> str:
+    """Translate name into enantiomer name by suffix.
+
+    :param name: Name
+    :param suffix0: First enantiomer suffix, defaults to "0"
+    :param suffix1: Second enantiomer suffix, defaults to "1"
+    :return: Name
+    """
+    if name.endswith(suffix0):
+        name = name.removesuffix(suffix0) + suffix1
+    elif name.endswith(suffix1):
+        name = name.removesuffix(suffix1) + suffix0
+    return name
+
+
+def enantiomer_names_list(
+    names: Sequence[str], suffix0: str = "0", suffix1: str = "1"
+) -> list[str]:
+    """Translate name into enantiomer name by suffix.
+
+    :param names: Names
+    :param suffix0: First enantiomer suffix, defaults to "0"
+    :param suffix1: Second enantiomer suffix, defaults to "1"
+    :return: Name
+    """
+    return [enantiomer_name(n, suffix0=suffix0, suffix1=suffix1) for n in names]
+
+
+def enantiomer_node_mapping(
+    surf: Surface, *, extend: bool = False, suffix0: str = "0", suffix1: str = "1"
+) -> dict[int, int]:
+    """Get mapping of chiral nodes onto their enantiomers.
+
+    :param surf: Surface
+    :param extend: Optionally, extend the mapping to map remaining nodes to themselves
+    :param suffix0: First enantiomer suffix, defaults to "0"
+    :param suffix1: Second enantiomer suffix, defaults to "1"
+    :return: Mapping
+    """
+    enant_dct = {}
+    for node in surf.nodes:
+        mirror_names = enantiomer_names_list(
+            node.names_list, suffix0=suffix0, suffix1=suffix1
+        )
+        mirror_key = node_key_from_names(surf, mirror_names, fake=node.fake)
+        if mirror_key is None:
+            msg = f"No enantiomer found for node {node.key}: {node.label}"
+            raise ValueError(msg)
+        if node.key != mirror_key or extend:
+            enant_dct[node.key] = mirror_key
+    return enant_dct
+
+
+def enantiomer_rate_mapping(
+    surf: Surface, *, extend: bool = False, suffix0: str = "0", suffix1: str = "1"
+) -> dict[tuple[int, int], tuple[int, int]]:
+    """Get mapping of chiral nodes onto their enantiomers.
+
+    :param surf: Surface
+    :param extend: Optionally, extend the mapping to map remaining nodes to themselves
+    :param suffix0: First enantiomer suffix, defaults to "0"
+    :param suffix1: Second enantiomer suffix, defaults to "1"
+    :return: Mapping
+    """
+    enant_dct = enantiomer_node_mapping(
+        surf, extend=True, suffix0=suffix0, suffix1=suffix1
+    )
+    enant_rate_dct = {}
+    for rate_key in rate_keys(surf):
+        key1, key2 = rate_key
+        mirror_rate_key = (enant_dct[key1], enant_dct[key2])
+        if extend or mirror_rate_key != rate_key:
+            enant_rate_dct[rate_key] = mirror_rate_key
+    return enant_rate_dct
+
+
+def enantiomer_rate_pairs(
+    surf: Surface, suffix0: str = "0", suffix1: str = "1"
+) -> list[tuple[tuple[int, int], tuple[int, int]]]:
+    """Get pairs of enantiomer rates.
+
+    :param surf: Surface
+    :param suffix0: First enantiomer suffix, defaults to "0"
+    :param suffix1: Second enantiomer suffix, defaults to "1"
+    :return: Rate key pairs
+    """
+    enant_rate_dct = enantiomer_rate_mapping(surf, suffix0=suffix0, suffix1=suffix1)
+    rate_key_pairs = []
+    for rate_key1, rate_key2 in enant_rate_dct.items():
+        rate_key1, rate_key2 = sorted([rate_key1, rate_key2])
+        if (rate_key1, rate_key2) not in rate_key_pairs:
+            rate_key_pairs.append((rate_key1, rate_key2))
+    return rate_key_pairs
+
+
+def enforce_equal_enantiomer_rates(
+    surf: Surface, *, tol: float = 0.1, suffix0: str = "0", suffix1: str = "1"
+) -> Surface:
+    """Enforce equal enantiomer rates for enantiomers.
+
+    Rates that are similar within a user-defined tolerance will be replaced with
+    their average across the two enantiomers.
+
+    Rates that differ beyond this threshold will be replaced with NaN.
+
+    :param surf: Surface
+    :param tol: Threshold for detecting a mismatch, resulting in NaN
+    :param suffix0: First enantiomer suffix, defaults to "0"
+    :param suffix1: Second enantiomer suffix, defaults to "1"
+    :return: Surface
+    """
+    rates = {rate_key: rate.model_copy() for rate_key, rate in surf.rates.items()}
+    rate_key_pairs = enantiomer_rate_pairs(surf, suffix0=suffix0, suffix1=suffix1)
+    for rate_key1, rate_key2 in rate_key_pairs:
+        rate1 = rates[rate_key1]
+        rate2 = rates[rate_key2]
+        rate = rate1.merge_equivalent(rate2, tol=tol)
+        rates[rate_key1] = rate
+        rates[rate_key2] = rate.model_copy()
+    return surf.model_copy(update={"rates": rates})
+
+
 def rate_keys(
     surf: Surface,
     *,
@@ -1069,9 +1191,7 @@ def unfittable_rate_keys(
     :return: Surface
     """
     unfit_keys = []
-    rate_keys_ = rate_keys(
-        surf, direct=direct, well_skipping=well_skipping, empty=True
-    )
+    rate_keys_ = rate_keys(surf, direct=direct, well_skipping=well_skipping, empty=True)
     for rate_key in rate_keys_:
         rate = surf.rates[rate_key]
         if not rate.fittable_pressures():
