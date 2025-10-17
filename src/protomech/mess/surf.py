@@ -196,10 +196,19 @@ def edge_keys(surf: Surface) -> list[frozenset[int]]:
     return [e.key for e in surf.edges]
 
 
-def direct_rate_keys(surf: Surface) -> list[tuple[int, int]]:
+def direct_rate_keys(
+    surf: Surface, P_vals: Sequence[float] = (), empty: bool = True
+) -> list[tuple[int, int]]:
     """Keys for direct rates."""
     edge_keys_ = edge_keys(surf)
-    return [k for k in surf.rates.keys() if frozenset(k) in edge_keys_]
+    rate_keys = []
+    for rate_key, rate in surf.rates.items():
+        is_direct = frozenset(rate_key) in edge_keys_
+        ok_P_vals = not P_vals or rate.has_pressures(P=P_vals)
+        ok_empty = empty or not rate.is_empty()
+        if is_direct and ok_P_vals and ok_empty:
+            rate_keys.append(rate_key)
+    return rate_keys
 
 
 def well_skipping_rate_keys(surf: Surface) -> list[tuple[int, int]]:
@@ -544,6 +553,57 @@ def remove_well_skipping_rates(
     surf = surf.model_copy(deep=True)
     surf.rates = {k: v for k, v in surf.rates.items() if k not in drop_keys}
     return surf
+
+
+def clear_node_rates(surf: Surface, keys: Collection[int]) -> Surface:
+    """Clear rates associated with a node (well-skipping rates are dropped).
+
+    :param surf: Surface
+    :param keys: Keys of nodes to remove
+    :return: Surface
+    """
+    edge_keys_ = edge_keys(surf)
+    rates = {}
+    for rate_key, rate in surf.rates.items():
+        key = next((k for k in keys if k in rate_key), None)
+        if key is None:
+            rates[rate_key] = rate.model_copy()
+        elif frozenset(rate_key) in edge_keys_:
+            rates[rate_key] = rate.clear()
+
+    return Surface(
+        nodes=surf.nodes, edges=surf.edges, mess_header=surf.mess_header, rates=rates
+    )
+
+
+def clear_rates(surf: Surface, rate_keys: Collection[tuple[int, int]]) -> Surface:
+    """Clear rates.
+
+    :param surf: Surface
+    :param rate_keys: Rtae keys
+    :return: Surface
+    """
+    rates = {}
+    for rate_key, rate in surf.rates.items():
+        if rate_key in rate_keys:
+            rates[rate_key] = rate.clear()
+        else:
+            rates[rate_key] = rate.model_copy()
+
+    return surf.model_copy(update={"rates": rates})
+
+
+def drop_unfittable_pressures(surf: Surface) -> Surface:
+    """Drop unfittable pressures from rates.
+
+    :param surf: Surface
+    :return: Surface
+    """
+    rates = {
+        rate_key: rate.drop_unfittable_pressures()
+        for rate_key, rate in surf.rates.items()
+    }
+    return surf.model_copy(update={"rates": rates})
 
 
 def extend(
@@ -976,6 +1036,44 @@ def fittable_pressures(surf: Surface) -> dict[tuple[int, int], list[float]]:
     return P_fit_dct
 
 
+def partially_unfittable_pressure_independent_rate_keys(
+    surf: Surface,
+    T_vals: Sequence[float],
+    *,
+    P_dep_tol: float = 0.2,
+    direct: bool = True,
+    well_skipping: bool = True,
+    empty: bool = True,
+) -> list[tuple[int, int]]:
+    """Identify unfittable rates.
+
+    :param surf: Surface
+    :param min_P_count: Minimum acceptable fittable pressure count
+    :return: Surface
+    """
+    edge_keys_ = edge_keys(surf)
+    unfit_keys = []
+    for rate_key, rate in surf.rates.items():
+        P_all = rate.P
+        P_fit = rate.fittable_pressures()
+        is_partially_unfittable = not all(np.any(np.isclose(P, P_fit)) for P in P_all)
+        is_pressure_independent = not rate.is_pressure_dependent(
+            T=T_vals, tol=P_dep_tol
+        )
+        edge_key = frozenset(rate_key)
+        is_direct = edge_key in edge_keys_
+        is_included = direct if is_direct else well_skipping
+        ok_empty = empty or not rate.is_empty()
+        if (
+            is_partially_unfittable
+            and is_pressure_independent
+            and is_included
+            and ok_empty
+        ):
+            unfit_keys.append(rate_key)
+    return unfit_keys
+
+
 def unfittable_rate_keys(
     surf: Surface,
     *,
@@ -1079,6 +1177,7 @@ def fit_rates(
             rate = rate.drop_temperatures(T_drop)
 
         if rate.is_pressure_dependent(tol=P_dep_tol):
+            rate = rate.drop_unfittable_pressures()
             rate_fit = ac.rate.data.PlogRateFit.fit(
                 T=rate.T,
                 P=rate.P,
@@ -1086,6 +1185,10 @@ def fit_rates(
                 k_high=rate.k_high,
                 A_fill=A_fill,
                 order=rate.order,
+            )
+        elif rate.is_empty():
+            rate_fit = ac.rate.data.ArrheniusRateFit.fit(
+                T=rate.T, k=[], A_fill=A_fill, order=rate.order
             )
         else:
             rate_fit = ac.rate.data.ArrheniusRateFit.fit(
