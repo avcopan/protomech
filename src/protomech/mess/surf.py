@@ -332,7 +332,7 @@ def rate_keys(
     for rate_key, rate in surf.rates.items():
         is_direct = frozenset(rate_key) in edge_keys_
         is_included = direct if is_direct else well_skipping
-        ok_P_vals = not P_vals or rate.has_pressures(P=P_vals)
+        ok_P_vals = not P_vals or rate.has_pressure_data(P=P_vals)
         ok_empty = empty or not rate.is_empty()
         if is_included and ok_P_vals and ok_empty:
             rate_keys_.append(rate_key)
@@ -715,14 +715,14 @@ def clear_rates(surf: Surface, keys: Collection[tuple[int, int]]) -> Surface:
     return surf.model_copy(update={"rates": rates})
 
 
-def drop_unfittable_pressures(surf: Surface) -> Surface:
+def clear_unfittable_pressures(surf: Surface) -> Surface:
     """Drop unfittable pressures from rates.
 
     :param surf: Surface
     :return: Surface
     """
     rates = {
-        rate_key: rate.drop_unfittable_pressures()
+        rate_key: rate.clear_pressures(rate.unfittable_pressures())
         for rate_key, rate in surf.rates.items()
     }
     return surf.model_copy(update={"rates": rates})
@@ -1272,7 +1272,6 @@ def fit_rates(
             rate = rate.drop_temperatures(T_drop)
 
         if rate.is_pressure_dependent(tol=P_dep_tol):
-            rate = rate.drop_unfittable_pressures()
             rate_fit = ac.rate.data.PlogRateFit.fit(
                 T=rate.T,
                 P=rate.P,
