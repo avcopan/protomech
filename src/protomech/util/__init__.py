@@ -1,3 +1,3 @@
-from . import sequence
+from . import array, sequence
 
-__all__ = ["sequence"]
+__all__ = ["array", "sequence"]

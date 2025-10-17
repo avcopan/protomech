@@ -22,7 +22,7 @@ import automech
 from automech import Mechanism
 from automech.reaction import Reaction
 
-from ..util import sequence
+from ..util import array, sequence
 from . import inp, out
 
 
@@ -196,25 +196,25 @@ def edge_keys(surf: Surface) -> list[frozenset[int]]:
     return [e.key for e in surf.edges]
 
 
-def direct_rate_keys(
-    surf: Surface, P_vals: Sequence[float] = (), empty: bool = True
+def rate_keys(
+    surf: Surface,
+    *,
+    P_vals: Sequence[float] = (),
+    empty: bool = True,
+    direct: bool = True,
+    well_skipping: bool = True,
 ) -> list[tuple[int, int]]:
     """Keys for direct rates."""
     edge_keys_ = edge_keys(surf)
-    rate_keys = []
+    rate_keys_ = []
     for rate_key, rate in surf.rates.items():
         is_direct = frozenset(rate_key) in edge_keys_
+        is_included = direct if is_direct else well_skipping
         ok_P_vals = not P_vals or rate.has_pressures(P=P_vals)
         ok_empty = empty or not rate.is_empty()
-        if is_direct and ok_P_vals and ok_empty:
-            rate_keys.append(rate_key)
-    return rate_keys
-
-
-def well_skipping_rate_keys(surf: Surface) -> list[tuple[int, int]]:
-    """Keys for direct rates."""
-    edge_keys_ = edge_keys(surf)
-    return [k for k in surf.rates.keys() if frozenset(k) not in edge_keys_]
+        if is_included and ok_P_vals and ok_empty:
+            rate_keys_.append(rate_key)
+    return rate_keys_
 
 
 def node_label_dict(surf: Surface) -> dict[int, str]:
@@ -576,16 +576,16 @@ def clear_node_rates(surf: Surface, keys: Collection[int]) -> Surface:
     )
 
 
-def clear_rates(surf: Surface, rate_keys: Collection[tuple[int, int]]) -> Surface:
+def clear_rates(surf: Surface, keys: Collection[tuple[int, int]]) -> Surface:
     """Clear rates.
 
     :param surf: Surface
-    :param rate_keys: Rtae keys
+    :param keys: Rate keys
     :return: Surface
     """
     rates = {}
     for rate_key, rate in surf.rates.items():
-        if rate_key in rate_keys:
+        if rate_key in keys:
             rates[rate_key] = rate.clear()
         else:
             rates[rate_key] = rate.model_copy()
@@ -1024,18 +1024,6 @@ def absorb_fake_nodes(surf: Surface) -> Surface:
     return surf
 
 
-def fittable_pressures(surf: Surface) -> dict[tuple[int, int], list[float]]:
-    """Determine fittable pressures for each rate.
-
-    :param surf: Surface
-    :return: Fittable pressures
-    """
-    P_fit_dct = {}
-    for rate_key, rate in surf.rates.items():
-        P_fit_dct[rate_key] = rate.fittable_pressures()
-    return P_fit_dct
-
-
 def partially_unfittable_pressure_independent_rate_keys(
     surf: Surface,
     T_vals: Sequence[float],
@@ -1051,25 +1039,19 @@ def partially_unfittable_pressure_independent_rate_keys(
     :param min_P_count: Minimum acceptable fittable pressure count
     :return: Surface
     """
-    edge_keys_ = edge_keys(surf)
     unfit_keys = []
-    for rate_key, rate in surf.rates.items():
-        P_all = rate.P
-        P_fit = rate.fittable_pressures()
-        is_partially_unfittable = not all(np.any(np.isclose(P, P_fit)) for P in P_all)
+    rate_keys_ = rate_keys(
+        surf, direct=direct, well_skipping=well_skipping, empty=empty
+    )
+    for rate_key in rate_keys_:
+        rate = surf.rates[rate_key]
+        is_partially_unfittable = not array.float_equal(
+            rate.P, rate.fittable_pressures()
+        )
         is_pressure_independent = not rate.is_pressure_dependent(
             T=T_vals, tol=P_dep_tol
         )
-        edge_key = frozenset(rate_key)
-        is_direct = edge_key in edge_keys_
-        is_included = direct if is_direct else well_skipping
-        ok_empty = empty or not rate.is_empty()
-        if (
-            is_partially_unfittable
-            and is_pressure_independent
-            and is_included
-            and ok_empty
-        ):
+        if is_partially_unfittable and is_pressure_independent:
             unfit_keys.append(rate_key)
     return unfit_keys
 
@@ -1079,7 +1061,6 @@ def unfittable_rate_keys(
     *,
     direct: bool = True,
     well_skipping: bool = True,
-    P_vals: Collection[float] | None = None,
 ) -> list[tuple[int, int]]:
     """Identify unfittable rates.
 
@@ -1087,19 +1068,13 @@ def unfittable_rate_keys(
     :param min_P_count: Minimum acceptable fittable pressure count
     :return: Surface
     """
-    edge_keys_ = edge_keys(surf)
-    fit_press_dct = fittable_pressures(surf)
     unfit_keys = []
-    for rate_key, P_fit in fit_press_dct.items():
-        edge_key = frozenset(rate_key)
-        is_unfittable = not (
-            bool(P_fit)
-            if P_vals is None
-            else all(np.any(np.isclose(P, P_fit)) for P in P_vals)
-        )
-        is_direct = edge_key in edge_keys_
-        is_included = direct if is_direct else well_skipping
-        if is_unfittable and is_included:
+    rate_keys_ = rate_keys(
+        surf, direct=direct, well_skipping=well_skipping, empty=True
+    )
+    for rate_key in rate_keys_:
+        rate = surf.rates[rate_key]
+        if not rate.fittable_pressures():
             unfit_keys.append(rate_key)
     return unfit_keys
 
@@ -1228,7 +1203,7 @@ def match_rate_directions(surf: Surface, mech: Mechanism) -> Surface:
     node_dct = {n.key: n for n in surf.nodes}
 
     # 1. Loop over edges to identify the directions of direct reactions
-    rate_keys = []
+    rate_keys_ = []
     direct_keys = edge_keys(surf)
     for direct_key in direct_keys:
         found = False
@@ -1239,7 +1214,7 @@ def match_rate_directions(surf: Surface, mech: Mechanism) -> Surface:
             rxn = (rct, prd)
             rxn = next((r for r in rxns if r == rxn), None)
             if rxn:
-                rate_keys.append(rate_key)
+                rate_keys_.append(rate_key)
                 found = True
                 break
 
@@ -1252,7 +1227,7 @@ def match_rate_directions(surf: Surface, mech: Mechanism) -> Surface:
     #    first node appears as a reactant and np is the number of time the
     #    second node appears as a product in the mechanism
     skip_keys = set(rate_key_pair_dct.keys()) - set(direct_keys)
-    rct_keys, prd_keys = zip(*rate_keys, strict=True)
+    rct_keys, prd_keys = zip(*rate_keys_, strict=True)
 
     def score(rate_key: tuple[int, int]) -> tuple[bool, bool, int, int, int]:
         key1, key2 = rate_key
@@ -1263,10 +1238,10 @@ def match_rate_directions(surf: Surface, mech: Mechanism) -> Surface:
     for skip_key in skip_keys:
         rate_key_pair = rate_key_pair_dct[skip_key]
         rate_key = max(rate_key_pair, key=score)
-        rate_keys.append(rate_key)
+        rate_keys_.append(rate_key)
 
-    rates = {k: v for k, v in surf.rates.items() if k in rate_keys}
-    rate_fits = {k: v for k, v in surf.rate_fits.items() if k in rate_keys}
+    rates = {k: v for k, v in surf.rates.items() if k in rate_keys_}
+    rate_fits = {k: v for k, v in surf.rate_fits.items() if k in rate_keys_}
     return surf.model_copy(update={"rates": rates, "rate_fits": rate_fits})
 
 
