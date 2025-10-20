@@ -1275,6 +1275,8 @@ def _enumerate_reactions(
     mech.reactions = reaction.update(rxn_df, mech.reactions)
     if match_src and src_mech is not None:
         mech.reactions = reaction.left_update(mech.reactions, src_mech.reactions)
+    else:
+        mech.reactions = reaction.with_dummy_rates(mech.reactions)
     return drop_duplicate_reactions(mech)
 
 

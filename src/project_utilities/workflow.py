@@ -14,7 +14,7 @@ from cantera.ck2yaml import Parser
 
 import automech
 from automech import Mechanism
-from automech.reaction import ReactionSorted
+from automech.reaction import Reaction, ReactionSorted
 from automech.species import Species
 from automech.util import c_
 
@@ -231,6 +231,71 @@ def prepare_calculation(
     automech.io.mechanalyzer.write.mechanism(
         ste_mech, rxn_out=ste_rxn_path, spc_out=ste_spc_path
     )
+
+
+def prepare_comparison(tag: str, root_path: str | Path) -> Mechanism:
+    """Prepare comparisons to the parent mechanism.
+    Update previous version with new species/reactions.
+
+    :param gen_mech: Generated mechanism
+    :param ste_mech: Stereo-expanded mechanism
+    :param tag: Mechanism tag
+    :param root_path: Project root directory
+    :return: Mechanism with used species in previous mechanism
+    """
+    print("\nReading parent mechanism...")
+    par_mech = read_parent_mechanism(root_path)
+
+    print("\nReading stereo mechanism...")
+    ste_path = p_.stereo_mechanism(tag, ext="json", path=p_.data(root_path))
+    print(ste_path)
+    ste_mech = automech.io.read(ste_path)
+
+    # Add temp prefix to reactants, products, orig_reactants, orig_products
+    pre = c_.temp()
+    cols = [Reaction.reactants, Reaction.products]
+    cols0 = c_.orig(cols)
+    pre_cols = c_.prefix(cols, pre=pre)
+    pre_cols0 = c_.prefix(cols0, pre=pre)
+    to_pre = c_.to_([*cols, *cols0], pre=pre)
+    ste_rxn_df = ste_mech.reactions.rename(to_pre)
+
+    # Copy prefixed orig_reactants, orig_products to reactants, products
+    to_arg = dict(zip(pre_cols0, cols, strict=True))
+    ste_rxn_df = ste_rxn_df.with_columns(
+        polars.col(c0).alias(c) for c0, c in to_arg.items()
+    )
+
+    # Left-update to pull in data and directions
+    ste_rxn_df = automech.reaction.left_update(ste_rxn_df, par_mech.reactions)
+
+    # Move the results to the orig_ columns, since they are missing stereo
+    ste_rxn_df = ste_rxn_df.rename(c_.to_orig(cols))
+
+    # Determine final columns with stereo by comparison to see if the direction
+    # needs to be reversed
+    match = polars.when(
+        (polars.col(cols0[0]) == polars.col(pre_cols0[0]))
+        & (polars.col(cols0[1]) == polars.col(pre_cols0[1]))
+    )
+    ste_rxn_df = ste_rxn_df.with_columns(
+        match.then(pre_cols[0]).otherwise(pre_cols[1]).alias(cols[0])
+    )
+    ste_rxn_df = ste_rxn_df.with_columns(
+        match.then(pre_cols[1]).otherwise(pre_cols[0]).alias(cols[1])
+    )
+    ste_rxn_df = ste_rxn_df.drop(to_pre.values())
+
+    # Replace the original reactions dataframe
+    comp_mech = ste_mech.model_copy()
+    comp_mech.reactions = ste_rxn_df
+
+    # Write
+    print("\nWriting mechanism...")
+    comp_path = p_.comparison_mechanism(tag, ext="json", path=p_.data(root_path))
+    print(comp_path)
+    automech.io.write(comp_mech, comp_path)
+
 
 
 def gather_statistics(tag: str, root_path: str | Path) -> None:
