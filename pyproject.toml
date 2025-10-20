@@ -29,7 +29,7 @@ name = "protomech"
 version = "0.1.0"
 
 [tool.pixi.package.build]
-backend = { name = "pixi-build-python", version = "==0.3.2" }
+backend = { name = "pixi-build-python", version = "*" }
 
 [tool.pixi.package.host-dependencies]
 hatchling = "==1.26.3"
