@@ -1119,7 +1119,7 @@ def enumerate_reactions(
     src_mech: Mechanism | None = None,
     repeat: int = 1,
     drop_self_rxns: bool = True,
-    match_src: bool = True,
+    match_src: bool = False,
 ) -> Mechanism:
     """Enumerate reactions for mechanism based on SMARTS reaction template.
 
