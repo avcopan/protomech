@@ -1,12 +1,12 @@
 """Sequence utility functions."""
 
 from collections.abc import Sequence
-from typing import List, TypeVar
+from typing import TypeVar
 
 T = TypeVar("T")
 
 
-def duplicates(seq: Sequence[T]) -> List[T]:
+def duplicates(seq: Sequence[T]) -> list[T]:
     """Find duplicates in a sequence.
 
     :param seq: Sequence

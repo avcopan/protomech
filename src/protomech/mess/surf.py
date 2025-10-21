@@ -565,7 +565,7 @@ def update_keys(surf: Surface, key_dct: Mapping[int, int]) -> Surface:
     """Update keys for surface.
 
     :param surf: Surface
-    :param key_dct: Mapping to update keys
+    :param key_dct: Mapping from old to new keys
     :return: Surface
     """
     surf = surf.model_copy(deep=True)
@@ -577,6 +577,17 @@ def update_keys(surf: Surface, key_dct: Mapping[int, int]) -> Surface:
     return surf
 
 
+def update_keys_by_label(surf: Surface, key_dct: Mapping[str, int]) -> Surface:
+    """Update keys for surface.
+
+    :param surf: Surface
+    :param key_dct: Mapping from labels to new keys
+    :return: Surface
+    """
+    key_dct_ = {n.key: key_dct[n.label] for n in surf.nodes}
+    return update_keys(surf, key_dct_)
+
+
 def shift_keys(surf: Surface, shift: int) -> Surface:
     """Shift keys for surface.
 
@@ -586,6 +597,23 @@ def shift_keys(surf: Surface, shift: int) -> Surface:
     """
     key_dct = {k: k + shift for k in node_keys(surf)}
     return update_keys(surf, key_dct)
+
+
+def shift_energies(surf: Surface, shift: float) -> Surface:
+    """Shift energies for surface.
+
+    :param surf: Surface
+    :param shift: Shift
+    :return: Surface
+    """
+    surf = surf.model_copy(deep=True)
+    for node in surf.nodes:
+        node.energy += shift
+        node.update_mess_body_energy()
+    for edge in surf.edges:
+        edge.energy += shift
+        edge.update_mess_body_energy()
+    return surf
 
 
 def set_no_fake_well_extension(surf: Surface) -> Surface:
@@ -1003,8 +1031,72 @@ def instability_product_node(
 
 
 # N-ary operations
+def align_keys(surfs: Sequence[Surface]) -> list[Surface]:
+    """Align keys across multiple surfaces.
+
+    :param surfs: Surfaces
+    :return: Surfaces
+    """
+    if not surfs:
+        return []
+
+    # Determine new key for each unique node
+    all_nodes = itertools.chain.from_iterable(s.nodes for s in surfs)
+    label_key_dct = {}
+    nodes = []
+    for key, node0 in enumerate(mit.unique_everseen(all_nodes, key=lambda n: n.label)):
+        node = node0.model_copy(update={"key": key})
+        nodes.append(node)
+        label_key_dct[node.label] = node.key
+
+    return [update_keys_by_label(surf, label_key_dct) for surf in surfs]
+
+
+def align_energies(surfs: Sequence[Surface]) -> list[Surface]:
+    """Align keys across multiple surfaces.
+
+    :param surfs: Surfaces
+    :return: Surfaces
+    """
+    nsurf = len(surfs)
+    shift_mat = np.full((nsurf,) * 2, np.nan, dtype=float)
+    for i1, i2 in itertools.combinations(range(nsurf), r=2):
+        surf1 = surfs[i1]
+        surf2 = surfs[i2]
+
+        node2_dct = {n.label: n for n in surf2.nodes}
+        node_pairs = [
+            (n1, node2_dct[n1.label]) for n1 in surf1.nodes if n1.label in node2_dct
+        ]
+        pair_shifts = [n2.energy - n1.energy for (n1, n2) in node_pairs if not n1.fake]
+
+        if not pair_shifts:
+            shift_mat[i1, i2] = shift_mat[i2, i1] = np.nan
+        elif np.allclose(pair_shifts[0], pair_shifts):
+            shift_mat[i1, i2] = np.max(pair_shifts)
+            shift_mat[i2, i1] = -shift_mat[i1, i2]
+        else:
+            msg = f"Node shifts are not all equal: {node_pairs}"
+            raise ValueError(msg)
+
+    relative_shifts = []
+    for i1, _ in enumerate(surfs):
+        i2 = np.nanargmax(shift_mat[i1])
+        shift = shift_mat[i1, i2]
+        shift_mat[i1, :] -= shift
+        shift_mat[:, i1] += shift
+        relative_shifts.append(shift)
+    shifts = np.subtract(relative_shifts, np.min(relative_shifts))
+    return [
+        shift_energies(surf, shift) for surf, shift in zip(surfs, shifts, strict=True)
+    ]
+
+
 def combine(surfs: Sequence[Surface]) -> Surface:
     """Combine multiple surfaces.
+
+    WARNING: This needs more care than I initially thought: Energies are
+    relative, so simply merging everything together can create conflicts.
 
     :param surfs: Surfaces
     :return: Combined surface
