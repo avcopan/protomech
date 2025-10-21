@@ -1052,14 +1052,27 @@ def align_keys(surfs: Sequence[Surface]) -> list[Surface]:
     return [update_keys_by_label(surf, label_key_dct) for surf in surfs]
 
 
-def align_energies(surfs: Sequence[Surface]) -> list[Surface]:
-    """Align keys across multiple surfaces.
+def energy_difference_matrix(surfs: Sequence[Surface]) -> np.ndarray:
+    """Determine the matrix of energy differences between surfaces.
+
+    Definition:
+
+        [[nan       E(1)-E(0)   E(2)-E(0)   ... E(n)-E(0)]
+         [E(0)-E(1) nan         E(2)-E(1)   ... E(n)-E(1)]
+         [E(0)-E(2) E(1)-E(2)   nan         ... E(n)-E(2)]
+         [...       ...         ...         ... ...      ]
+         [E(0)-E(n) E(1)-E(n)   nan         ... nan      ]]
+
+    Here, E(x) is the relative energy scale of the xth surface. Differences are
+    determined from differences between common nodes. If common nodes between
+    two surfaces do not all have the same relative energy difference, an error
+    will be raised.
 
     :param surfs: Surfaces
-    :return: Surfaces
+    :return: Matrix
     """
     nsurf = len(surfs)
-    shift_mat = np.full((nsurf,) * 2, np.nan, dtype=float)
+    diff_mat = np.full((nsurf,) * 2, np.nan, dtype=float)
     for i1, i2 in itertools.combinations(range(nsurf), r=2):
         surf1 = surfs[i1]
         surf2 = surfs[i2]
@@ -1071,25 +1084,53 @@ def align_energies(surfs: Sequence[Surface]) -> list[Surface]:
         pair_shifts = [n2.energy - n1.energy for (n1, n2) in node_pairs if not n1.fake]
 
         if not pair_shifts:
-            shift_mat[i1, i2] = shift_mat[i2, i1] = np.nan
-        elif np.allclose(pair_shifts[0], pair_shifts):
-            shift_mat[i1, i2] = np.max(pair_shifts)
-            shift_mat[i2, i1] = -shift_mat[i1, i2]
+            diff_mat[i1, i2] = diff_mat[i2, i1] = np.nan
+        elif np.allclose(pair_shifts[0], pair_shifts, rtol=0.001, atol=0.05):
+            diff_mat[i1, i2] = np.max(pair_shifts)
+            diff_mat[i2, i1] = -diff_mat[i1, i2]
         else:
-            msg = f"Node shifts are not all equal: {node_pairs}"
+            msg = f"Node shifts are not all equal: {pair_shifts}"
             raise ValueError(msg)
+    return diff_mat
 
+
+def align_energies(surfs: Sequence[Surface]) -> list[Surface]:
+    """Align energy scales across multiple surfaces.
+
+    From the energy difference matrix between surfaces, solves for the relative
+    energy shifts needed to put all surfaces on the same energy scale.
+
+    :param surfs: Surfaces
+    :return: Surfaces
+    """
+    # Use energy difference matrix
+    shift_mat = energy_difference_matrix(surfs)
     relative_shifts = []
     for i1, _ in enumerate(surfs):
-        i2 = np.nanargmax(shift_mat[i1])
-        shift = shift_mat[i1, i2]
-        shift_mat[i1, :] -= shift
-        shift_mat[:, i1] += shift
-        relative_shifts.append(shift)
+        row = shift_mat[i1]
+        if np.all(np.isnan(row)):
+            relative_shifts.append(0.0)
+        else:
+            i2 = np.nanargmax(row)
+            shift = shift_mat[i1, i2]
+            shift_mat[i1, :] -= shift
+            shift_mat[:, i1] += shift
+            relative_shifts.append(shift)
+
     shifts = np.subtract(relative_shifts, np.min(relative_shifts))
-    return [
+    surfs = [
         shift_energies(surf, shift) for surf, shift in zip(surfs, shifts, strict=True)
     ]
+
+    # Re-calculate energy difference matrix
+    shift_mat = energy_difference_matrix(surfs)
+    max_shift_idxs = np.unravel_index(np.nanargmax(shift_mat), shift_mat.shape)
+    max_shift = shift_mat[max_shift_idxs]
+    if not np.isclose(max_shift, 0.0, rtol=0.001, atol=0.05):
+        msg = f"Non-zero remaining shift at {max_shift_idxs}: {max_shift}"
+        raise ValueError(msg)
+
+    return surfs
 
 
 def combine(surfs: Sequence[Surface]) -> Surface:
