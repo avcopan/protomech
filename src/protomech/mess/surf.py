@@ -1124,11 +1124,12 @@ def align_energies(surfs: Sequence[Surface]) -> list[Surface]:
 
     # Re-calculate energy difference matrix
     shift_mat = energy_difference_matrix(surfs)
-    max_shift_idxs = np.unravel_index(np.nanargmax(shift_mat), shift_mat.shape)
-    max_shift = shift_mat[max_shift_idxs]
-    if not np.isclose(max_shift, 0.0, rtol=0.001, atol=0.05):
-        msg = f"Non-zero remaining shift at {max_shift_idxs}: {max_shift}"
-        raise ValueError(msg)
+    if np.any(~np.isnan(shift_mat)):
+        max_shift_idxs = np.unravel_index(np.nanargmax(shift_mat), shift_mat.shape)
+        max_shift = shift_mat[max_shift_idxs]
+        if not np.isclose(max_shift, 0.0, rtol=0.001, atol=0.05):
+            msg = f"Non-zero remaining shift at {max_shift_idxs}: {max_shift}"
+            raise ValueError(msg)
 
     return surfs
 
