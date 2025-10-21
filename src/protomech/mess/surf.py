@@ -1200,13 +1200,16 @@ def unfittable_rate_keys(
 
 
 def branching_fractions(
-    surf: Surface, T: Sequence[float], P: Sequence[float]
+    surf: Surface, T: Sequence[float], P: Sequence[float], *, z_drop: float = 3.0
 ) -> dict[tuple[int, int], np.ndarray]:
     """Determine branching fraction for each rate.
+
+    Since the data tend to be noisy, one can drop outliers by Z-score.
 
     :param surf: Surface
     :param T: Temperatures for evaluating branching fraction
     :param P: Pressures for evaluating branching fraction
+    :param z_drop: Z-score for removing outliers
     :return: Branching fractions
     """
     surf = surf.model_copy(deep=True)
@@ -1220,6 +1223,8 @@ def branching_fractions(
         for rate_key, rate in rates.items():
             with np.errstate(divide="ignore", invalid="ignore"):
                 branch_frac = rate(T=T, P=P) / total_rate(T=T, P=P)
+            z = np.abs((branch_frac - branch_frac.mean()) / branch_frac.std())
+            branch_frac[z > z_drop] = np.nan
             frac_dct[rate_key] = branch_frac
     return frac_dct
 
@@ -1232,6 +1237,7 @@ def irrelevant_rate_keys(
     direct: bool = True,
     well_skipping: bool = True,
     min_branch_frac: float = 0.01,
+    z_drop: float = 3.0,
 ) -> list[tuple[int, int]]:
     """Identify irrelevant rates by branching fraction.
 
@@ -1240,7 +1246,7 @@ def irrelevant_rate_keys(
     :return: Surface
     """
     edge_keys_ = edge_keys(surf)
-    branch_fracs_dct = branching_fractions(surf, T=T, P=P)
+    branch_fracs_dct = branching_fractions(surf, T=T, P=P, z_drop=z_drop)
     irrel_keys = []
     for rate_key, branch_fracs in branch_fracs_dct.items():
         edge_key = frozenset(rate_key)
