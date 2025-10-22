@@ -1,3 +1,3 @@
-from . import array, sequence
+from . import array, digraph, sequence
 
-__all__ = ["array", "sequence"]
+__all__ = ["array", "digraph", "sequence"]

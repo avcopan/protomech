@@ -5,10 +5,11 @@ import re
 import textwrap
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Literal, TypeAlias
 
+import altair as alt
 import autochem as ac
 import automol
 import more_itertools as mit
@@ -17,13 +18,17 @@ import numpy as np
 import polars as pl
 import pydantic
 from autochem.rate.data import Rate, RateFit
+from numpy.typing import ArrayLike, NDArray
+from scipy import interpolate
 
 import automech
 from automech import Mechanism
 from automech.reaction import Reaction
 
-from ..util import array, sequence
+from ..util import array, digraph, sequence
 from . import inp, out
+
+FeatureKey: TypeAlias = int | frozenset[int]
 
 
 class Feature(pydantic.BaseModel, ABC):
@@ -398,7 +403,7 @@ def edge_object_from_label(surf: Surface, label: str) -> Edge:
 
 
 def node_object(
-    surf: Surface, key: int, copy: bool = False, deep: bool = False
+    surf: Surface, key: int, *, copy: bool = False, deep: bool = False
 ) -> Node:
     """Look up node object by key
 
@@ -414,7 +419,7 @@ def node_object(
 
 
 def edge_object(
-    surf: Surface, key: Collection[int], copy: bool = False, deep: bool = False
+    surf: Surface, key: Collection[int], *, copy: bool = False, deep: bool = False
 ) -> Edge:
     """Look up node object by key
 
@@ -427,6 +432,34 @@ def edge_object(
         msg = f"Key {key} is not associated with an edge:\n{surf.model_dump()}"
         raise ValueError(msg)
     return edge
+
+
+def feature_object(
+    surf: Surface, key: int | Collection[int], *, copy: bool = False, deep: bool = False
+) -> Node | Edge:
+    """Look up node or edge object by key.
+
+    :param surf: Surface
+    :param key: Key
+    :param copy: Whether to copy
+    :param deep: Whether to deep copy
+    :return: Node or edge
+    """
+    if isinstance(key, int):
+        return node_object(surf, key, copy=copy, deep=deep)
+    return edge_object(surf, key, copy=copy, deep=deep)
+
+
+def energy_dict(surf: Surface) -> dict[FeatureKey, float]:
+    """Get dictionary mapping from node/edge keys to energies.
+
+    :param surf: Surface
+    :return: Dictionary
+    """
+    energy_dct = {}
+    energy_dct.update({n.key: n.energy for n in surf.nodes})
+    energy_dct.update({e.key: e.energy for e in surf.edges})
+    return energy_dct
 
 
 def edge_chemkin_equation(surf: Surface, key: Collection[int]) -> str:
@@ -558,6 +591,210 @@ def shortest_path(surf: Surface, key1: int, key2: int) -> list[int]:
     """
     gra = graph(surf)
     return nx.shortest_path(gra, source=key1, target=key2)
+
+
+class Color:
+    """Color hex values."""
+
+    # Line colors:
+    blue = "#0066ff"
+    red = "#ff0000"
+    green = "#1ab73a"
+    orange = "#ef7810"
+    purple = "#8533ff"
+    pink = "#d0009a"
+    yellow = "#ffcd00"
+    # Point colors:
+    black = "#000000"
+    gray = "#808080ff"
+    light_gray = "#bfbfbfff"
+    brown = "#916e6e"
+
+
+COLOR_SEQUENCE = [
+    Color.blue,
+    Color.red,
+    Color.green,
+    Color.purple,
+    Color.pink,
+    Color.yellow,
+    Color.orange,
+]
+
+
+def plot_paths(
+    surf: Surface, node_paths: list[list[int]], *, colors: Sequence[str] | None = None
+) -> alt.Chart:
+    """Generate feature paths from source.
+
+    :param surf: Surface
+    :param node_paths: Node paths
+    :return: Chart
+    """
+    npaths = len(node_paths)
+    colors = colors or list(itertools.islice(itertools.cycle(COLOR_SEQUENCE), npaths))
+    feat_paths = feature_paths_from_node_paths(surf, node_paths, barrierless=False)
+    seg_feat_paths = sequence.unique_adjacent_pair_sequences(feat_paths)
+    coord_dct = feature_paths_coordinates(feat_paths)
+    energy_dct = energy_dict(surf)
+    funcs = [_path_energy_function(sp, coord_dct, energy_dct) for sp in seg_feat_paths]
+
+    x = np.linspace(0.0, 1.0, num=200)
+    keys = list(map(str, range(npaths)))
+    data = {c: f(x) for c, f in zip(keys, funcs, strict=True)}
+    df = pl.DataFrame({"x": x, **data})
+    return (
+        alt.Chart(df)
+        .transform_fold(fold=list(data.keys()), as_=["path", "energy"])
+        .mark_line()
+        .encode(
+            x=alt.X("x:T", axis=None),
+            y="energy:Q",
+            color=alt.Color("path:N", legend=None).scale(
+                domain=keys,
+                range=colors,
+            ),
+        )
+    )
+
+
+def _path_energy_function(
+    seg_feat_path: list[tuple[FeatureKey, FeatureKey]],
+    coord_dct: dict[FeatureKey, float],
+    energy_dct: dict[FeatureKey, float],
+) -> Callable[[ArrayLike], NDArray]:
+    """Generate an energy function for a path
+
+    :param seg_feat_path: Feature path segments
+    :param coord_dct: Coordinate dictionary
+    :param energy_dct: Energy dictionary
+    :return: Energy function
+    """
+
+    def dummy_(x: ArrayLike) -> NDArray:
+        return np.full_like(x, np.nan, dtype=float)
+
+    if not seg_feat_path:
+        return dummy_
+
+    bounds = [(coord_dct[k1], coord_dct[k2]) for k1, k2 in seg_feat_path]
+    energies = [(energy_dct[k1], energy_dct[k2]) for k1, k2 in seg_feat_path]
+    interps = [
+        interpolate.CubicHermiteSpline(x=[x1, x2], y=[y1, y2], dydx=[0.0, 0.0])
+        for (x1, x2), (y1, y2) in zip(bounds, energies, strict=True)
+    ]
+
+    def energy_(x: ArrayLike) -> NDArray:
+        x = np.asarray(x)
+        conditions = [(x1 <= x) & (x < x2) for (x1, x2) in bounds]
+        y = np.piecewise(x, conditions, interps)
+        # Fill in NaNs where no condition was satisfied
+        y[~np.any(conditions, axis=0)] = np.nan
+        return y
+
+    return energy_
+
+
+def feature_paths_from_node_paths(
+    surf: Surface, node_paths: list[list[int]], *, barrierless: bool = False
+) -> list[list[FeatureKey]]:
+    """Get feature paths from node paths.
+
+    :param surf: Surface
+    :param node_paths: Node paths
+    :return: Feature paths
+    """
+    return [
+        feature_path_from_node_path(surf, p, barrierless=barrierless)
+        for p in node_paths
+    ]
+
+
+def feature_paths_from_source(
+    surf: Surface,
+    key: int,
+    *,
+    leaf_keys: Sequence[int] | None = None,
+    barrierless: bool = False,
+) -> list[list[FeatureKey]]:
+    """Generate feature paths from source.
+
+    :param surf: Surface
+    :param key: Root key
+    :param leaf_keys: Leaf keys
+    :param barrierless: Whether to include barrierless edges
+    :return: Feature paths
+    """
+    node_paths = node_paths_from_source(surf, key, leaf_keys=leaf_keys)
+    return [
+        feature_path_from_node_path(surf, p, barrierless=barrierless)
+        for p in node_paths
+    ]
+
+
+def node_paths_from_source(
+    surf: Surface,
+    key: int,
+    *,
+    leaf_keys: Sequence[int] | None = None,
+) -> list[list[int]]:
+    """Generate node paths from source.
+
+    :param surf: Surface
+    :param key: Node key
+    :param leaf_keys: Leaf keys
+    :return: Node paths
+    """
+    D = digraph_from_source(surf, key)
+    return digraph.all_simple_root_leaf_node_paths(
+        D, root_keys=[key], leaf_keys=leaf_keys
+    )
+
+
+def feature_path_from_node_path(
+    surf: Surface, node_path: Sequence[int], *, barrierless: bool = False
+) -> list[FeatureKey]:
+    """Create feature path from node path.
+
+    Drops barrierless edges.
+
+    :param surf: Surface
+    :param node_path: Node path
+    :param barrierless: Whether to include barrierless edges
+    :return: Feature path
+    """
+    edge_iter = map(frozenset, mit.pairwise(node_path))
+    feat_path = []
+    for feat_key in mit.interleave_longest(node_path, edge_iter):
+        feat = feature_object(surf, feat_key)
+        is_barrierless = isinstance(feat, Edge) and feat.barrierless
+        if barrierless or not is_barrierless:
+            feat_path.append(feat_key)
+    return feat_path
+
+
+def feature_paths_coordinates(paths: list[list[FeatureKey]]) -> dict[FeatureKey, float]:
+    """Determine x coordinates for plotting paths.
+
+    :param surf: Surface
+    :param paths: Paths
+    :return: Mapping from node/edge key to x coordinate
+    """
+    T = sequence.multi_ordering_digraph(paths)
+    root_keys = digraph.root_node_keys(T)
+    leaf_keys = digraph.leaf_node_keys(T)
+    term_keys = root_keys + leaf_keys
+    feat_keys = [
+        k for k in digraph.topologically_sorted_node_keys(T) if k not in term_keys
+    ]
+    feat_coords = np.linspace(0.0, 1.0, num=len(feat_keys) + 2, endpoint=True)[
+        1:-1
+    ].tolist()
+    coord_dct = {}
+    coord_dct.update({k: 0.0 for k in root_keys})
+    coord_dct.update({k: 1.0 for k in leaf_keys})
+    coord_dct.update({k: x for k, x in zip(feat_keys, feat_coords, strict=True)})
+    return coord_dct
 
 
 # Transformations
@@ -1168,13 +1405,48 @@ def combine(surfs: Sequence[Surface]) -> Surface:
 
 # Conversions
 def graph(surf: Surface) -> nx.Graph:
-    """Convert to a networkx Graph."""
-    gra = nx.Graph()
+    """Convert to networkx Graph."""
+    G = nx.Graph()
     for node in surf.nodes:
-        gra.add_node(node.key, **node.model_dump())
+        G.add_node(node.key, **node.model_dump())
     for edge in surf.edges:
-        gra.add_edge(*edge.key, **edge.model_dump())
-    return gra
+        G.add_edge(*edge.key, **edge.model_dump())
+    return G
+
+
+def digraph_from_source(surf: Surface, key: int) -> nx.DiGraph:
+    """Convert to networkx DiGraph oriented away from a source key.
+
+    :param surf: Surface
+    :param key: Key
+    :return: DiGraph
+    """
+    G = graph(surf)
+
+    # Compute shortest path distances from the root
+    dist_dct = nx.single_source_shortest_path_length(G, key)
+
+    D = nx.DiGraph()
+    D.add_nodes_from(G.nodes)
+
+    for key1, key2 in G.edges:
+        dist1 = dist_dct.get(key1, float("inf"))
+        dist2 = dist_dct.get(key2, float("inf"))
+
+        # Direct from smaller to larger distance
+        if dist1 < dist2:
+            D.add_edge(key1, key2)
+        elif dist2 < dist1:
+            D.add_edge(key2, key1)
+        else:
+            # same distance — pick an arbitrary but consistent direction
+            # (e.g., sort nodes to make deterministic)
+            if key1 < key2:
+                D.add_edge(key1, key2)
+            else:
+                D.add_edge(key2, key1)
+
+    return D
 
 
 # I/O

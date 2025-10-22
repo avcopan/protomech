@@ -15,11 +15,23 @@ RUN_PATH.mkdir(exist_ok=True)
 
 @pytest.mark.parametrize("mess_inp_name", ["cyclopentene-ho2-addition.inp"])
 def test__from_mess_input(mess_inp_name):
-    """Test autochem.pes.from_mess_input."""
+    """Test mess.surf.from_mess_input."""
     mess_inp = DATA_PATH / mess_inp_name
     surf = mess.surf.from_mess_input(mess_inp)
     surf = mess.surf.set_no_fake_well_extension(surf)
     print(mess.surf.mess_input(surf))
+
+
+def test__plot_paths():
+    """Test mess.surf.plot_paths"""
+    mess_inp = DATA_PATH / "cyclopentenyl-o2-mess.inp"
+    mech_file = DATA_PATH / "cyclopentenyl-o2.json"
+    surf = mess.surf.from_mess_input(mess_inp)
+    mech = automech.io.read(mech_file)
+    mess.net.display(surf, height="1000px", mech=mech, open_browser=False)
+    node_paths = mess.surf.node_paths_from_source(surf, 25, leaf_keys=[21, 22])
+    print(node_paths)
+    mess.surf.plot_paths(surf, node_paths)
 
 
 def test__prompt_instability():
