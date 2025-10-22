@@ -773,27 +773,69 @@ def feature_path_from_node_path(
     return feat_path
 
 
-def feature_paths_coordinates(paths: list[list[FeatureKey]]) -> dict[FeatureKey, float]:
+def feature_paths_coordinates(
+    feat_paths: list[list[FeatureKey]],
+) -> dict[FeatureKey, float]:
     """Determine x coordinates for plotting paths.
+
+    The node positioning is somewhat complicated...
+
+    Positioning:
+        - Position root nodes all at 0
+        - Position topologically-sorted mid nodes after spacings*
+        - Position leaf nodes after spacing*
+        - Position barriers halfway between their associated nodes
+
+    * Add two spaces if preceded by a barrier, one space if not
+
+    Coordinates are then determined by rescaling these positions onto a [0., 1.] domain.
 
     :param surf: Surface
     :param paths: Paths
     :return: Mapping from node/edge key to x coordinate
     """
-    T = sequence.multi_ordering_digraph(paths)
+    # Identify edge keys
+    edge_keys = [k for p in feat_paths for k in p if isinstance(k, frozenset)]
+
+    # Identify root, leaf, and mid node keys
+    node_paths = [[k for k in p if isinstance(k, int)] for p in feat_paths]
+    T = sequence.multi_ordering_digraph(node_paths)
     root_keys = digraph.root_node_keys(T)
     leaf_keys = digraph.leaf_node_keys(T)
     term_keys = root_keys + leaf_keys
-    feat_keys = [
+    mid_keys = [
         k for k in digraph.topologically_sorted_node_keys(T) if k not in term_keys
     ]
-    feat_coords = np.linspace(0.0, 1.0, num=len(feat_keys) + 2, endpoint=True)[
-        1:-1
-    ].tolist()
-    coord_dct = {}
-    coord_dct.update({k: 0.0 for k in root_keys})
-    coord_dct.update({k: 1.0 for k in leaf_keys})
-    coord_dct.update({k: x for k, x in zip(feat_keys, feat_coords, strict=True)})
+
+    # Determine node positions
+    positions = []
+    node_keys = []
+    position = 0.0
+    positions.extend([position for _ in root_keys])
+    node_keys.extend(root_keys)
+    for node_key in mid_keys:
+        passed_node_keys = set([*node_keys, node_key])
+        passed_edge_keys = {k for k in edge_keys if k <= passed_node_keys}
+        if passed_edge_keys:
+            position += 2.0
+        else:
+            position += 1.0
+        positions.append(position)
+        node_keys.append(node_key)
+    leaf_edge_keys = {k for k in edge_keys if any(k_ in k for k_ in leaf_keys)}
+    position += 2.0 if leaf_edge_keys else 1.0
+    positions.extend([position for _ in leaf_keys])
+    node_keys.extend(leaf_keys)
+
+    # Determine node coordinates
+    coords = np.divide(positions, np.max(position))
+    coord_dct = {k: c for k, c in zip(node_keys, coords, strict=True)}
+
+    # Determine edge coordinates
+    for edge_key in edge_keys:
+        key1, key2 = edge_key
+        coord_dct[edge_key] = (coord_dct[key1] + coord_dct[key2]) / 2.0
+
     return coord_dct
 
 
