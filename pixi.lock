@@ -25,7 +25,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/asttokens-3.0.0-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/async-lru-2.0.5-pyh29332c3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/attrs-25.4.0-pyh71513ae_0.conda
-      - conda: https://conda.anaconda.org/auto-mech/noarch/autochem-2025.10.1-pyh4616a5c_0.conda
+      - conda: https://conda.anaconda.org/auto-mech/noarch/autochem-2025.10.2-pyh4616a5c_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/aws-c-auth-0.9.1-h48c9088_3.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/aws-c-cal-0.9.2-he7b75e1_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/aws-c-common-0.12.4-hb03c661_0.conda
@@ -435,7 +435,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/asttokens-3.0.0-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/async-lru-2.0.5-pyh29332c3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/attrs-25.4.0-pyh71513ae_0.conda
-      - conda: https://conda.anaconda.org/auto-mech/noarch/autochem-2025.10.1-pyh4616a5c_0.conda
+      - conda: https://conda.anaconda.org/auto-mech/noarch/autochem-2025.10.2-pyh4616a5c_0.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-64/aws-c-auth-0.9.1-h2e727e9_3.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-64/aws-c-cal-0.9.2-h6f29d6d_1.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-64/aws-c-common-0.12.4-h1c43f85_0.conda
@@ -799,7 +799,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/asttokens-3.0.0-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/async-lru-2.0.5-pyh29332c3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/attrs-25.4.0-pyh71513ae_0.conda
-      - conda: https://conda.anaconda.org/auto-mech/noarch/autochem-2025.10.1-pyh4616a5c_0.conda
+      - conda: https://conda.anaconda.org/auto-mech/noarch/autochem-2025.10.2-pyh4616a5c_0.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/aws-c-auth-0.9.1-h41ebd0a_3.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/aws-c-cal-0.9.2-hd08b81e_1.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/aws-c-common-0.12.4-h6caf38d_0.conda
@@ -1163,7 +1163,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/asttokens-3.0.0-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/async-lru-2.0.5-pyh29332c3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/attrs-25.4.0-pyh71513ae_0.conda
-      - conda: https://conda.anaconda.org/auto-mech/noarch/autochem-2025.10.1-pyh4616a5c_0.conda
+      - conda: https://conda.anaconda.org/auto-mech/noarch/autochem-2025.10.2-pyh4616a5c_0.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/aws-c-auth-0.9.1-hc6331ae_3.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/aws-c-cal-0.9.2-hef2a5b8_1.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/aws-c-common-0.12.4-hfd05255_0.conda
@@ -1525,7 +1525,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/arro3-core-0.6.5-py313h5c7d99a_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/asttokens-3.0.0-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/attrs-25.4.0-pyh71513ae_0.conda
-      - conda: https://conda.anaconda.org/auto-mech/noarch/autochem-2025.10.1-pyh4616a5c_0.conda
+      - conda: https://conda.anaconda.org/auto-mech/noarch/autochem-2025.10.2-pyh4616a5c_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/aws-c-auth-0.9.1-h48c9088_3.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/aws-c-cal-0.9.2-he7b75e1_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/aws-c-common-0.12.4-hb03c661_0.conda
@@ -1762,7 +1762,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/osx-64/arro3-core-0.6.5-py313ha265c4a_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/asttokens-3.0.0-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/attrs-25.4.0-pyh71513ae_0.conda
-      - conda: https://conda.anaconda.org/auto-mech/noarch/autochem-2025.10.1-pyh4616a5c_0.conda
+      - conda: https://conda.anaconda.org/auto-mech/noarch/autochem-2025.10.2-pyh4616a5c_0.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-64/aws-c-auth-0.9.1-h2e727e9_3.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-64/aws-c-cal-0.9.2-h6f29d6d_1.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-64/aws-c-common-0.12.4-h1c43f85_0.conda
@@ -1987,7 +1987,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/arro3-core-0.6.5-py313h0b74987_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/asttokens-3.0.0-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/attrs-25.4.0-pyh71513ae_0.conda
-      - conda: https://conda.anaconda.org/auto-mech/noarch/autochem-2025.10.1-pyh4616a5c_0.conda
+      - conda: https://conda.anaconda.org/auto-mech/noarch/autochem-2025.10.2-pyh4616a5c_0.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/aws-c-auth-0.9.1-h41ebd0a_3.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/aws-c-cal-0.9.2-hd08b81e_1.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/aws-c-common-0.12.4-h6caf38d_0.conda
@@ -2213,7 +2213,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/win-64/arro3-core-0.6.5-py313hf61f64f_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/asttokens-3.0.0-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/attrs-25.4.0-pyh71513ae_0.conda
-      - conda: https://conda.anaconda.org/auto-mech/noarch/autochem-2025.10.1-pyh4616a5c_0.conda
+      - conda: https://conda.anaconda.org/auto-mech/noarch/autochem-2025.10.2-pyh4616a5c_0.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/aws-c-auth-0.9.1-hc6331ae_3.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/aws-c-cal-0.9.2-hef2a5b8_1.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/aws-c-common-0.12.4-hfd05255_0.conda
@@ -3938,7 +3938,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/arro3-core-0.6.5-py313h5c7d99a_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/asttokens-3.0.0-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/attrs-25.4.0-pyh71513ae_0.conda
-      - conda: https://conda.anaconda.org/auto-mech/noarch/autochem-2025.10.1-pyh4616a5c_0.conda
+      - conda: https://conda.anaconda.org/auto-mech/noarch/autochem-2025.10.2-pyh4616a5c_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/aws-c-auth-0.9.1-h48c9088_3.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/aws-c-cal-0.9.2-he7b75e1_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/aws-c-common-0.12.4-hb03c661_0.conda
@@ -4181,7 +4181,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/osx-64/arro3-core-0.6.5-py313ha265c4a_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/asttokens-3.0.0-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/attrs-25.4.0-pyh71513ae_0.conda
-      - conda: https://conda.anaconda.org/auto-mech/noarch/autochem-2025.10.1-pyh4616a5c_0.conda
+      - conda: https://conda.anaconda.org/auto-mech/noarch/autochem-2025.10.2-pyh4616a5c_0.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-64/aws-c-auth-0.9.1-h2e727e9_3.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-64/aws-c-cal-0.9.2-h6f29d6d_1.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-64/aws-c-common-0.12.4-h1c43f85_0.conda
@@ -4412,7 +4412,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/arro3-core-0.6.5-py313h0b74987_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/asttokens-3.0.0-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/attrs-25.4.0-pyh71513ae_0.conda
-      - conda: https://conda.anaconda.org/auto-mech/noarch/autochem-2025.10.1-pyh4616a5c_0.conda
+      - conda: https://conda.anaconda.org/auto-mech/noarch/autochem-2025.10.2-pyh4616a5c_0.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/aws-c-auth-0.9.1-h41ebd0a_3.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/aws-c-cal-0.9.2-hd08b81e_1.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/aws-c-common-0.12.4-h6caf38d_0.conda
@@ -4644,7 +4644,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/win-64/arro3-core-0.6.5-py313hf61f64f_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/asttokens-3.0.0-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/attrs-25.4.0-pyh71513ae_0.conda
-      - conda: https://conda.anaconda.org/auto-mech/noarch/autochem-2025.10.1-pyh4616a5c_0.conda
+      - conda: https://conda.anaconda.org/auto-mech/noarch/autochem-2025.10.2-pyh4616a5c_0.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/aws-c-auth-0.9.1-hc6331ae_3.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/aws-c-cal-0.9.2-hef2a5b8_1.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/aws-c-common-0.12.4-hfd05255_0.conda
@@ -5221,7 +5221,7 @@ packages:
   timestamp: 1759762331492
 - conda: ../autochem
   name: autochem
-  version: 2025.10.1
+  version: 2025.10.2
   build: pyh4616a5c_0
   subdir: noarch
   depends:
@@ -5233,19 +5233,20 @@ packages:
   - pint >=0.25
   - py3dmol >=2.5.3
   - pyparsing >=3.2.5
-  - python
-  - python
   - pyyaml >=6.0.3
   - qcelemental >=0.29.0
   - rdkit >=2025.9.1
   - scipy >=1.12
   - xarray >=2023.8
+  - python >=3.11
+  - python *
   input:
-    hash: 98d29fe248b2351519759cd57fddb9b84af679593891404258dd256df3adf2d8
-    globs: []
-- conda: https://conda.anaconda.org/auto-mech/noarch/autochem-2025.10.1-pyh4616a5c_0.conda
-  sha256: 743d67b8a5759d9e86f55cf6805ad31e54fb5e9145ee5495b34498cacb1b5f99
-  md5: 62f3f309f001ddcf859e0bec61f20b1a
+    hash: 9ea231cbbf8fbf0c2d6567533db191adf36eedc0161a4f2fbbad3cae3d4990a5
+    globs:
+    - pyproject.toml
+- conda: https://conda.anaconda.org/auto-mech/noarch/autochem-2025.10.2-pyh4616a5c_0.conda
+  sha256: 8cc6391a62404e20240873b735c59f65aefaab50c6f1487e6c66ad265b7a4232
+  md5: 742095730f86947fc3210ceafb270bab
   depends:
   - altair >=5.5.0
   - ipython >=8.15
@@ -5260,9 +5261,10 @@ packages:
   - rdkit >=2025.9.1
   - scipy >=1.12
   - xarray >=2023.8
-  - python
-  size: 605181
-  timestamp: 1760451880197
+  - python >=3.11
+  - python *
+  size: 605796
+  timestamp: 1761230782772
 - conda: https://conda.anaconda.org/conda-forge/linux-64/aws-c-auth-0.9.1-h48c9088_3.conda
   sha256: e9c3dece30c12dfac995a8386bd2d1225d0b5f14c0753fcf4fef086047f77048
   md5: afdbdbe7f786f47a36a51fdc2fe91210
@@ -15080,25 +15082,26 @@ packages:
   build: pyh4616a5c_0
   subdir: noarch
   depends:
-  - altair-all >=5.5.0
-  - autochem ==2025.10.1
-  - more-itertools >=10.8.0
-  - networkx >=3.4
+  - autochem ==2025.10.2
   - numpy >=2.0
+  - scipy >=1.14
+  - networkx >=3.4
+  - altair-all >=5.5.0
+  - more-itertools >=10.8.0
   - pandera >=0.26.1
   - pint >=0.25
   - polars >=1.34.0
-  - py3dmol >=2.5.3
   - pyarrow >=21.0.0
-  - pydantic >=2.12.0
+  - py3dmol >=2.5.3
   - pyparsing >=3.2.5
-  - python
-  - python
-  - scipy >=1.14
+  - pydantic >=2.12.0
   - tqdm >=4.67.1
+  - python >=3.12
+  - python *
   input:
-    hash: 2d0031450080dba331428bf0de18aa6b14aed8cb861165d174f0c623712f756c
-    globs: []
+    hash: c7989775286ef515c3b21cb5423ab9715d9a27da7c2f7b94edfe337e62e36b26
+    globs:
+    - pyproject.toml
 - pypi: https://files.pythonhosted.org/packages/38/61/f76959fba841bf5b61123fbf4b650886dc4094c6858008b5bf73d9057216/psutil-7.1.0-cp36-abi3-macosx_11_0_arm64.whl
   name: psutil
   version: 7.1.0

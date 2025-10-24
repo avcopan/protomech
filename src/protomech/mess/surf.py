@@ -923,6 +923,25 @@ def set_no_well_extension(surf: Surface, keys: Sequence[int]) -> Surface:
     return surf.model_copy(update={"nodes": nodes})
 
 
+def unset_well_extension_cap(surf: Surface) -> Surface:
+    """Unset well extension cap for all nodes.
+
+    :param surf: Surface
+    :return: Surface with turned off well extension
+    """
+    nodes = []
+    for node0 in surf.nodes:
+        node = node0.model_copy()
+        node.mess_body = "\n".join(
+            line
+            for line in node.mess_body.splitlines()
+            if "WellExtensionCap" not in line
+        )
+        nodes.append(node)
+
+    return surf.model_copy(update={"nodes": nodes})
+
+
 def remove_nodes(surf: Surface, keys: Collection[int]) -> Surface:
     """Remove nodes from surface, along with their associated edges.
 
@@ -1211,6 +1230,23 @@ def correct_fake_well_energies(surf: Surface, *, in_place: bool = False) -> Surf
             if energy < node.energy:
                 node.energy = energy
                 node.update_mess_body_energy()
+    return surf
+
+
+def set_mess_header_line(surf: Surface, keyword: str, line: str) -> Surface:
+    """Set a particular line in the MESS header.
+
+    Assumes the keyword value goes on a single line
+
+    :param surf: Surface
+    :param keyword: Keyword
+    :param line: Line
+    :return: Surface
+    """
+    surf = surf.model_copy(deep=True)
+    surf.mess_header = "\n".join(
+        line if keyword in line0 else line0 for line0 in surf.mess_header.splitlines()
+    )
     return surf
 
 
