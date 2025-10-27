@@ -1065,16 +1065,21 @@ def clear_rates(surf: Surface, keys: Collection[tuple[int, int]]) -> Surface:
     return surf.model_copy(update={"rates": rates})
 
 
-def clear_unfittable_pressures(surf: Surface) -> Surface:
-    """Drop unfittable pressures from rates.
+def clear_unfittable_pressure_ranges(surf: Surface) -> Surface:
+    """Clear unfittable pressures from rates.
 
     :param surf: Surface
     :return: Surface
     """
-    rates = {
-        rate_key: rate.clear_pressures(rate.unfittable_pressures())
-        for rate_key, rate in surf.rates.items()
-    }
+    rates = {}
+    for rate_key, rate in surf.rates.items():
+        P_unfit = rate.unfittable_pressures()
+        if P_unfit:
+            P0 = min(P_unfit)
+            P1 = max(P_unfit)
+            rates[rate_key] = rate.clear_pressure_range(P0, P1)
+        else:
+            rates[rate_key] = rate
     return surf.model_copy(update={"rates": rates})
 
 
