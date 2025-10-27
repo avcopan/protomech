@@ -1757,12 +1757,35 @@ def irrelevant_rate_keys(
     for rate_key, branch_fracs in branch_fracs_dct.items():
         edge_key = frozenset(rate_key)
         max_branch_frac = np.nanmax(np.nan_to_num(branch_fracs, nan=0.0))
-        is_irrelevant = max_branch_frac >= min_branch_frac
+        is_irrelevant = max_branch_frac <= min_branch_frac
         is_direct = edge_key in edge_keys_
         is_included = direct if is_direct else well_skipping
-        if not is_irrelevant and is_included:
+        if is_irrelevant and is_included:
             irrel_keys.append(rate_key)
     return irrel_keys
+
+
+def irrelevant_rate_pressures(
+    surf: Surface,
+    T: Sequence[float],
+    P: Sequence[float],
+    *,
+    min_branch_frac: float = 0.01,
+    z_drop: float = 3.0,
+) -> dict[tuple[int, int], list[float]]:
+    """Identify pressures at which rates are irrelevant.
+
+    :param surf: Surface
+    :param min_branch_frac: Minimum acceptable branching fraction
+    :return: Surface
+    """
+    branch_fracs_dct = branching_fractions(surf, T=T, P=P, z_drop=z_drop)
+    irrel_pressures = {}
+    for rate_key, branch_frac_arr in branch_fracs_dct.items():
+        max_branch_frac = np.nanmax(np.nan_to_num(branch_frac_arr, nan=0.0), axis=0)
+        Ps = np.asarray(P)[max_branch_frac <= min_branch_frac].tolist()
+        irrel_pressures[rate_key] = Ps
+    return irrel_pressures
 
 
 def fit_rates(
@@ -1770,6 +1793,11 @@ def fit_rates(
     T_drop: Sequence[float] = (),
     P_dep_tol: float = 0.2,
     A_fill: float | None = None,
+    bad_fit: Literal["fill"]
+    | Literal["warn"]
+    | Literal["raise"]
+    | Literal["ignore"] = "warn",
+    bad_fit_fill_pressures_dct: dict[tuple[int, int], list[float]] | None = None,
 ) -> Surface:
     """Fit rates to Arrhenius or Plog.
 
@@ -1777,28 +1805,42 @@ def fit_rates(
     :param tol: Threshold for determining pressure dependence
     :return: Surface
     """
+    bad_fit_fill_pressures_dct = (
+        {} if bad_fit_fill_pressures_dct is None else bad_fit_fill_pressures_dct
+    )
     surf = surf.model_copy(deep=True)
     surf.rate_fits = {}
     for rate_key, rate in surf.rates.items():
         if T_drop:
             rate = rate.drop_temperatures(T_drop)
 
+        bad_fit_fill_pressures = bad_fit_fill_pressures_dct.get(rate_key, [])
         if rate.is_pressure_dependent(tol=P_dep_tol):
             rate_fit = ac.rate.data.PlogRateFit.fit(
-                T=rate.T,
-                P=rate.P,
+                Ts=rate.T,
+                Ps=rate.P,
                 k_data=rate.k_data,
                 k_high=rate.k_high,
                 A_fill=A_fill,
+                bad_fit=bad_fit,
+                bad_fit_fill_pressures=bad_fit_fill_pressures,
                 order=rate.order,
             )
         elif rate.is_empty():
             rate_fit = ac.rate.data.ArrheniusRateFit.fit(
-                T=rate.T, k=[], A_fill=A_fill, order=rate.order
+                Ts=rate.T,
+                ks=[],
+                A_fill=A_fill,
+                bad_fit=bad_fit,
+                order=rate.order,
             )
         else:
             rate_fit = ac.rate.data.ArrheniusRateFit.fit(
-                T=rate.T, k=rate.high_pressure_values(), A_fill=A_fill, order=rate.order
+                Ts=rate.T,
+                ks=rate.high_pressure_values(),
+                A_fill=A_fill,
+                bad_fit=bad_fit,
+                order=rate.order,
             )
         surf.rate_fits[rate_key] = rate_fit
     return surf
