@@ -1713,19 +1713,24 @@ def branching_fractions(
     :param z_drop: Z-score for removing outliers
     :return: Branching fractions
     """
+    well_skipping_rate_keys = rate_keys(surf, direct=False, well_skipping=True)
     surf = surf.model_copy(deep=True)
     frac_dct = {}
     for key1 in node_keys(surf):
         rates = {(k1, k2): v for (k1, k2), v in surf.rates.items() if k1 == key1}
-        total_rate = functools.reduce(
-            operator.add, [r.fill_nan(nan=0.0) for r in rates.values()]
-        )
-        # If the branching fraction is below the threshold, drop it
+        # Prevent winning by default
+        rates_data = np.array([r(T=T, P=P) for r in rates.values()], dtype=float)
+        total_rate_data = np.sum(np.nan_to_num(rates_data, nan=0.0), axis=0)
         for rate_key, rate in rates.items():
             with np.errstate(divide="ignore", invalid="ignore"):
-                branch_frac = rate(T=T, P=P) / total_rate(T=T, P=P)
+                branch_frac = rate(T=T, P=P) / total_rate_data
+            # Remove Z-score outliers
             z = np.abs((branch_frac - branch_frac.mean()) / branch_frac.std())
             branch_frac[z > z_drop] = np.nan
+            # Prevent well-skipping rates from "winning by default" (only non-NaN value)
+            if rate_key in well_skipping_rate_keys:
+                valid_count = np.sum(np.isfinite(rates_data), axis=0)
+                branch_frac[valid_count <= 1] = np.nan
             frac_dct[rate_key] = branch_frac
     return frac_dct
 
