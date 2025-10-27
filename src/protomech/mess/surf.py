@@ -526,11 +526,20 @@ def node_neighbors(surf: Surface, key: int, skip_fake: bool = False) -> list[int
 
 
 def node_key_from_label(surf: Surface, label: str) -> int:
+    """Get node key from label."""
     key = next((n.key for n in surf.nodes if n.label == label), None)
     if key is None:
         msg = f"No node found matching label {label}."
         raise ValueError(msg)
     return key
+
+
+def edge_key_from_labels(surf: Surface, labels: tuple[str, str]) -> frozenset[int]:
+    """Get edge key from node labels."""
+    label1, label2 = labels
+    key1 = node_key_from_label(surf, label1)
+    key2 = node_key_from_label(surf, label2)
+    return frozenset({key1, key2})
 
 
 def node_key_from_names(
@@ -1022,6 +1031,21 @@ def clear_node_rates(surf: Surface, keys: Collection[int]) -> Surface:
     return Surface(
         nodes=surf.nodes, edges=surf.edges, mess_header=surf.mess_header, rates=rates
     )
+
+
+def clear_edge_rates(
+    surf: Surface, keys: Collection[Annotated[Collection[int], 2]]
+) -> Surface:
+    """Clear rates associated with an edge.
+
+    :param surf: Surface
+    :param keys: Keys of edges to remove
+    :return: Surface
+    """
+    all_keys = list(
+        itertools.chain.from_iterable([(k1, k2), (k2, k1)] for k1, k2 in keys)
+    )
+    return clear_rates(surf, all_keys)
 
 
 def clear_rates(surf: Surface, keys: Collection[tuple[int, int]]) -> Surface:
