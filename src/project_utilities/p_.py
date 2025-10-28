@@ -29,9 +29,14 @@ def mess(root_path: str | Path) -> Path:
     return data(root_path) / "mess"
 
 
-def mess_source(root_path: str | Path) -> Path:
+def mess_initial(root_path: str | Path) -> Path:
     """Determine mess path from root."""
-    return data(root_path) / "mess" / "source"
+    return data(root_path) / "mess" / "initial"
+
+
+def mess_final(root_path: str | Path) -> Path:
+    """Determine mess path from root."""
+    return data(root_path) / "mess" / "final"
 
 
 def cantera(root_path: str | Path) -> Path:
@@ -52,11 +57,6 @@ def cantera_t(root_path: str | Path) -> Path:
 def calc(root_path: str | Path, tag: str) -> Path:
     """Determine data path from root."""
     return Path(root_path) / "calc" / tag
-
-
-def mess_calc(root_path: str | Path) -> Path:
-    """Determine data path from root."""
-    return Path(root_path) / "calc" / "mess"
 
 
 def ckin(root_path: str | Path, tag: str) -> Path:
