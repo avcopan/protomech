@@ -155,10 +155,12 @@ class Surface(pydantic.BaseModel):
 
     nodes: list[Node]
     edges: list[Edge]
+    mess_header: str
+    # Rates
     rates: dict[tuple[int, int], Rate] = {}
     rate_fits: dict[tuple[int, int], RateFit] = {}
-
-    mess_header: str
+    loss_rates: dict[int, Rate] = {}
+    branching_fractions: dict[tuple[int, int], Rate] = {}
 
     @pydantic.model_validator(mode="after")
     def _validate_keys(self):
@@ -1598,7 +1600,29 @@ def with_mess_output_rates(surf: Surface, mess_out: str | Path) -> Surface:
                 block, order=len(node1.names_list)
             )
             surf.rates[(node1.key, node2.key)] = rate
+        elif res.id1 and res.id2 == "":
+            node = node_object_from_label(surf, trans_dct[res.id1])
+            rate = ac.rate.data.from_mess_channel_output(
+                block, order=len(node.names_list)
+            )
+            surf.loss_rates[node.key] = rate
 
+    update_branching_fractions(surf, in_place=True)
+    return surf
+
+
+def update_branching_fractions(surf: Surface, in_place: bool = False) -> Surface:
+    """Update branching fractions for a surface.
+
+    :param surf: Surface
+    :return: Surface
+    """
+    surf = surf if in_place else surf.model_copy(deep=True)
+    for rate_key in rate_keys(surf):
+        reac_key, _ = rate_key
+        surf.branching_fractions[rate_key] = (
+            surf.rates[rate_key] / surf.loss_rates[reac_key]
+        )
     return surf
 
 
