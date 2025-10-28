@@ -2027,6 +2027,9 @@ def add_mechanism_well_skipping_rates(
         rate_data[ReactionRateExtra.cleared].append(cleared)
         rate_data[ReactionRateExtra.partially_cleared].append(partially_cleared)
 
+    if not rate_data:
+        return mech
+
     rate_df = automech.reaction.bootstrap(dict(rate_data), spc_df=mech.species)
 
     mech = mech.model_copy()

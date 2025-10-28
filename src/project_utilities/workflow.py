@@ -427,7 +427,11 @@ def postprocess_rate_data(
         surf, T_vals=T_vals, direct=False
     )
     if bad_skip_rate_keys:
-        msg = f"Bad pressure-independent well-skipping rates: {bad_skip_rate_keys}"
+        label_dct = mess.surf.node_label_dict(surf)
+        bad_skip_rate_labels = [
+            (label_dct[k1], label_dct[k2]) for k1, k2 in bad_skip_rate_keys
+        ]
+        msg = f"Bad pressure-independent well-skipping rates: {bad_skip_rate_labels}"
         raise ValueError(msg)
 
     print(" - Checking for non-irrelevant bad pressure-independence direct rates...")
@@ -439,7 +443,9 @@ def postprocess_rate_data(
     )
     bad_rate_keys = set(all_bad_rate_keys) - set(irrel_rate_keys)
     if bad_rate_keys:
-        msg = f"Bad pressure-independent well-skipping rates: {bad_skip_rate_keys}"
+        label_dct = mess.surf.node_label_dict(surf)
+        bad_rate_labels = [(label_dct[k1], label_dct[k2]) for k1, k2 in bad_rate_keys]
+        msg = f"Bad pressure-independent direct rates: {bad_rate_labels}"
         raise ValueError(msg)
 
     print(" - Clearing bad pressure-independence direct rates that are irrelevant...")
