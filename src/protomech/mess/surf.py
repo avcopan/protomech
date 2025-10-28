@@ -23,7 +23,7 @@ from scipy import interpolate
 
 import automech
 from automech import Mechanism
-from automech.reaction import Reaction
+from automech.reaction import Reaction, ReactionRate, ReactionRateExtra
 
 from ..util import array, digraph, sequence
 from . import inp, out
@@ -1917,7 +1917,121 @@ def match_rate_directions(surf: Surface, mech: Mechanism) -> Surface:
 
     rates = {k: v for k, v in surf.rates.items() if k in rate_keys_}
     rate_fits = {k: v for k, v in surf.rate_fits.items() if k in rate_keys_}
-    return surf.model_copy(update={"rates": rates, "rate_fits": rate_fits})
+    return surf.model_copy(deep=True, update={"rates": rates, "rate_fits": rate_fits})
+
+
+def update_mechanism_rates(
+    surf: Surface,
+    mech: Mechanism,
+    *,
+    A_fill: float,
+    surf_data: Surface | None = None,
+    drop_orig: bool = True,
+) -> Mechanism:
+    """Update direct rates in a mechanism.
+
+    :param surf: Surface
+    :param mech: Mechanism
+    :param surf_data: Alternative surface to pull un-fitted rate data from
+    :return: Mechanism
+    """
+    mech = update_mechanism_direct_rates(
+        surf, mech, A_fill=A_fill, surf_data=surf_data, drop_orig=drop_orig
+    )
+    mech = add_mechanism_well_skipping_rates(
+        surf, mech, A_fill=A_fill, surf_data=surf_data, drop_orig=drop_orig
+    )
+    return mech
+
+
+def update_mechanism_direct_rates(
+    surf: Surface,
+    mech: Mechanism,
+    *,
+    A_fill: float,
+    surf_data: Surface | None = None,
+    drop_orig: bool = False,
+) -> Mechanism:
+    """Update direct rates in a mechanism.
+
+    :param surf: Surface
+    :param mech: Mechanism
+    :param surf_data: Alternative surface to pull un-fitted rate data from
+    :return: Mechanism
+    """
+    surf_data_ = surf if surf_data is None else surf_data
+
+    rate_data = []
+    for rate_key in rate_keys(surf, direct=True, well_skipping=False):
+        key1, key2 = rate_key
+        node1 = node_object(surf, key1)
+        node2 = node_object(surf, key2)
+        rate = surf_data_.rates[rate_key]
+        rate_fit = surf.rate_fits[rate_key]
+        cleared = rate_fit.is_cleared(A_fill=A_fill)
+        partially_cleared = rate_fit.is_partially_cleared(A_fill=A_fill)
+        rate_data.append(
+            {
+                Reaction.reactants: node1.names_list,  # type: ignore
+                Reaction.products: node2.names_list,  # type: ignore
+                ReactionRate.reversible: True,
+                ReactionRate.rate: rate_fit.model_dump(),
+                ReactionRateExtra.rate_data: rate.model_dump(),
+                ReactionRateExtra.well_skipping: False,
+                ReactionRateExtra.cleared: cleared,
+                ReactionRateExtra.partially_cleared: partially_cleared,
+            }
+        )
+
+    rate_df = pl.DataFrame(rate_data, infer_schema_length=None)
+
+    mech = mech.model_copy()
+    mech.reactions = automech.reaction.left_update(
+        mech.reactions, rate_df, drop_orig=drop_orig
+    )
+    return mech
+
+
+def add_mechanism_well_skipping_rates(
+    surf: Surface,
+    mech: Mechanism,
+    *,
+    A_fill: float,
+    surf_data: Surface | None = None,
+    drop_orig: bool = False,
+) -> Mechanism:
+    """Add well-skipping rates to a mechanism.
+
+    :param surf: Surface
+    :param mech: Mechanism
+    :param surf_data: Alternative surface to pull un-fitted rate data from
+    :return: Mechanism
+    """
+    surf_data_ = surf if surf_data is None else surf_data
+
+    rate_data = defaultdict(list)
+    for rate_key in rate_keys(surf, direct=False, well_skipping=True):
+        key1, key2 = rate_key
+        node1 = node_object(surf, key1)
+        node2 = node_object(surf, key2)
+        rate = surf_data_.rates[rate_key]
+        rate_fit = surf.rate_fits[rate_key]
+        cleared = rate_fit.is_cleared(A_fill=A_fill)
+        partially_cleared = rate_fit.is_partially_cleared(A_fill=A_fill)
+        rate_data[Reaction.reactants].append(node1.names_list)
+        rate_data[Reaction.products].append(node2.names_list)
+        rate_data[ReactionRate.reversible].append(True)
+        rate_data[ReactionRate.rate].append(rate_fit.model_dump())
+        rate_data[ReactionRateExtra.rate_data].append(rate.model_dump())
+        rate_data[ReactionRateExtra.well_skipping].append(True)
+        rate_data[ReactionRateExtra.cleared].append(cleared)
+        rate_data[ReactionRateExtra.partially_cleared].append(partially_cleared)
+
+    rate_df = automech.reaction.bootstrap(dict(rate_data), spc_df=mech.species)
+
+    mech = mech.model_copy()
+    mech.reactions = pl.concat([mech.reactions, rate_df], how="diagonal_relaxed")
+    return mech
 
 
 def mess_input(surf: Surface) -> str:

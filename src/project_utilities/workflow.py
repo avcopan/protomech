@@ -14,7 +14,7 @@ from cantera.ck2yaml import Parser
 
 import automech
 from automech import Mechanism
-from automech.reaction import Reaction, ReactionRate, ReactionRateType, ReactionSorted
+from automech.reaction import Reaction, ReactionRate, ReactionRateExtra, ReactionSorted
 from automech.species import Species
 from automech.util import c_
 from protomech import mess
@@ -338,7 +338,7 @@ def gather_statistics(tag: str, root_path: str | Path) -> None:
     print(stat_df)
 
 
-def prepare_simulation(
+def postprocess_rate_data(
     tag: str,
     stoich: str,
     therm_tag: str,
@@ -346,12 +346,11 @@ def prepare_simulation(
     *,
     clear_nodes: Sequence[str] = (),
     clear_edges: Sequence[tuple[str, str]] = (),
-    T_range: tuple[float, float] = (300, 1200),
     T_vals=(600, 700, 800, 900, 1000, 1100, 1200),
     P_vals=(0.1, 1, 10, 100),
     T_drop=(300, 400),
     A_fill=1e-20,
-) -> None:
+) -> tuple[Mechanism, Mechanism]:
     """Prepare simulation from MESS output.
 
     :param tag: Mechanism tag
@@ -359,16 +358,23 @@ def prepare_simulation(
     :param tag0: Source mechanism tag
     :param root_path: Project root directory
     """
-    print(f"Reading in source mechanism and selecting {stoich} PES...")
+    print(f"Reading in primary source mechanism and selecting {stoich} PES...")
     mech_path = p_.stereo_mechanism(tag, "json", p_.data(root_path))
     mech = automech.io.read(mech_path)
     mech.reactions = automech.reaction.select_pes(mech.reactions, stoich)
     mech = automech.without_unused_species(mech)
 
+    print(f"Reading in comparison source mechanism and selecting {stoich} PES...")
+    comp_mech_path = p_.stereo_mechanism(tag, "json", p_.data(root_path))
+    comp_mech = automech.io.read(comp_mech_path)
+    comp_mech.reactions = automech.reaction.select_pes(comp_mech.reactions, stoich)
+    comp_mech = automech.without_unused_species(comp_mech)
+
     print("Adding thermochemistry data...")
     therm_path = p_.ckin(root_path, therm_tag)
     therm_file = therm_path / "all_therm.ckin_1"
     mech = automech.io.chemkin.update.thermo(mech, therm_file)
+    comp_mech = automech.io.chemkin.update.thermo(comp_mech, therm_file)
 
     print("Post-processing rate data...")
     print(" - Reading in MESS input...")
@@ -381,10 +387,10 @@ def prepare_simulation(
     surf0 = mess.surf.with_mess_output_rates(surf0, mess_out=mess_out)
 
     print(" - Integrating over fake nodes...")
-    surf = mess.surf.absorb_fake_nodes(surf0)
+    surf0 = mess.surf.absorb_fake_nodes(surf0)
 
     print(" - Enforcing equal enantiomer rates...")
-    surf = mess.surf.enforce_equal_enantiomer_rates(surf, tol=0.1)
+    surf = mess.surf.enforce_equal_enantiomer_rates(surf0, tol=0.1)
 
     if clear_nodes:
         print(f" - Clearing rates for nodes {clear_nodes}...")
@@ -456,92 +462,143 @@ def prepare_simulation(
 
     print("Adding rate data...")
     print(" - Matching rates to reaction directions...")
+    comp_surf = mess.surf.match_rate_directions(surf, comp_mech)
     surf = mess.surf.match_rate_directions(surf, mech)
 
-    print(" - Building direct reactions DataFrame...")
-    rate_data = []
-    for rate_key in mess.surf.rate_keys(surf, well_skipping=False):
-        key1, key2 = rate_key
-        node1 = mess.surf.node_object(surf, key1)
-        node2 = mess.surf.node_object(surf, key2)
-        rate = surf.rate_fits[rate_key]
-        rate_data.append(
-            {
-                Reaction.reactants: node1.names_list,  # type: ignore
-                Reaction.products: node2.names_list,  # type: ignore
-                ReactionRate.reversible: True,
-                ReactionRate.rate: rate.model_dump(),
-                ReactionRateType.well_skipping: False,
-            }
-        )
+    print(" - Adding direct rate data...")
+    calc_mech1 = mess.surf.update_mechanism_rates(
+        surf, mech, A_fill=A_fill, surf_data=surf0, drop_orig=True
+    )
+    calc_mech2 = mess.surf.update_mechanism_rates(
+        comp_surf, comp_mech, A_fill=A_fill, surf_data=surf0, drop_orig=False
+    )
 
-    rate_df = pl.DataFrame(rate_data, infer_schema_length=None)
-    print(rate_df)
+    print("Writing mechanisms to JSON...")
+    calc_mech1_json = p_.calculated_mechanism1(
+        tag, stoich, "json", path=p_.data(root_path)
+    )
+    calc_mech2_json = p_.calculated_mechanism2(
+        tag, stoich, "json", path=p_.data(root_path)
+    )
+    print(f" - Calculated: {calc_mech1_json}")
+    automech.io.write(calc_mech1, calc_mech1_json)
+    print(f" - Comparison: {calc_mech2_json}")
+    automech.io.write(calc_mech2, calc_mech2_json)
+
+    print("Writing mechanisms to Chemkin...")
+    calc_mech1_ckin = p_.calculated_mechanism1(
+        tag, stoich, "dat", path=p_.chemkin(root_path)
+    )
+    calc_mech2_ckin = p_.calculated_mechanism2(
+        tag, stoich, "dat", path=p_.chemkin(root_path)
+    )
+    print(f" - Calculated: {calc_mech1_ckin}")
+    automech.io.chemkin.write.mechanism(calc_mech1, calc_mech1_ckin)
+    print(f" - Comparison: {calc_mech2_ckin}")
+    automech.io.chemkin.write.mechanism(calc_mech2, calc_mech2_ckin)
+
+    print("Writing mechanisms to Cantera...")
+    calc_mech1_yaml = p_.calculated_mechanism1(
+        tag, stoich, "yaml", path=p_.cantera(root_path)
+    )
+    calc_mech2_yaml = p_.calculated_mechanism2(
+        tag, stoich, "yaml", path=p_.cantera(root_path)
+    )
+    print(f" - Calculated: {calc_mech1_yaml}")
+    automech.io.chemkin.write.mechanism(calc_mech1, calc_mech1_yaml)
+    print(f" - Comparison: {calc_mech2_yaml}")
+    automech.io.chemkin.write.mechanism(calc_mech2, calc_mech2_yaml)
+
+    print("Converting ChemKin mechanism to Cantera YAML...")
+    Parser.convert_mech(calc_mech1_ckin, out_name=calc_mech1_yaml)
+    Parser.convert_mech(calc_mech2_ckin, out_name=calc_mech2_yaml)
+
+    print("Validating Cantera model...")
+    cantera.Solution(calc_mech1_yaml)  # type: ignore
+    cantera.Solution(calc_mech2_yaml)  # type: ignore
+    return mech, comp_mech
 
 
-def prepare_simulation_old(tag: str, root_path: str | Path) -> None:
+def prepare_simulation(tag: str, stoichs: Sequence[str], root_path: str | Path) -> None:
     """Read calculation results and prepare simulation.
 
     :param tag: Mechanism tag
     :param root_path: Project root directory
     """
-    # Read mechanisms
-    print("\nReading mechanisms...")
-    par_mech = automech.io.read(p_.parent_mechanism("json", path=p_.data(root_path)))
-    sub_mech = automech.io.read(
-        p_.stereo_mechanism(tag, "json", path=p_.data(root_path))
-    )
+    print("Reading mechanisms...")
+    par_mech_json = p_.parent_mechanism("json", path=p_.data(root_path))
+    mech1_jsons = [
+        p_.calculated_mechanism1(tag, s, "json", path=p_.data(root_path))
+        for s in stoichs
+    ]
+    mech2_jsons = [
+        p_.calculated_mechanism2(tag, s, "json", path=p_.data(root_path))
+        for s in stoichs
+    ]
+    print(f" - Parent: {par_mech_json}")
+    par_mech = automech.io.read(par_mech_json)
+    print(f" - Calculated: {mech1_jsons}")
+    mech1s = list(map(automech.io.read, mech1_jsons))
+    print(f" - Comparison: {mech2_jsons}")
+    mech2s = list(map(automech.io.read, mech2_jsons))
+    mech1 = automech.combine_all(mech1s)
+    mech2 = automech.combine_all(mech2s)
 
-    # Add calculated thermo to mechanism object
-    print("\nAdding calculated thermo...")
-    ckin_path = p_.ckin(root_path, tag)
-    *_, therm_file = ckin_path.glob("all_therm.ckin*")
-    cal_sub_mech = automech.io.chemkin.update.thermo(sub_mech, therm_file)
+    print("Expanding and updating parent...")
+    full_control_mech = automech.expand_parent_stereo(par_mech, mech1)
+    full_calc1_mech = automech.update(full_control_mech, mech1)
+    full_calc2_mech = automech.update(full_control_mech, mech2)
 
-    # Add calculated rates to mechanism object (use units of parent)
-    print("\nAdding calculated rates...")
-    rate_files = list(ckin_path.glob("*.ckin"))
-    cal_sub_mech = automech.io.chemkin.update.rates(cal_sub_mech, rate_files)
+    print("Writing mechanism to JSON...")
+    full_control_json = p_.full_control_mechanism(tag, "json", path=p_.data(root_path))
+    full_calc1_json = p_.full_calculated_mechanism1(
+        tag, "json", path=p_.data(root_path)
+    )
+    full_calc2_json = p_.full_calculated_mechanism2(
+        tag, "json", path=p_.data(root_path)
+    )
+    print(f" - Control: {full_control_json}")
+    automech.io.write(full_control_mech, full_control_json)
+    print(f" - Calculated: {full_calc1_json}")
+    automech.io.write(full_calc1_mech, full_calc1_json)
+    print(f" - Comparison: {full_calc2_json}")
+    automech.io.write(full_calc2_mech, full_calc2_json)
 
-    # Merge updated rates and thermo into parent mechanism
-    print("\nExpanding and updating parent...")
-    con_mech = automech.expand_parent_stereo(par_mech, cal_sub_mech)
-    cal_mech = automech.update(con_mech, cal_sub_mech)
+    print("Writing mechanism to Chemkin...")
+    full_control_ckin = p_.full_control_mechanism(
+        tag, "dat", path=p_.chemkin(root_path)
+    )
+    full_calc1_ckin = p_.full_calculated_mechanism1(
+        tag, "dat", path=p_.chemkin(root_path)
+    )
+    full_calc2_ckin = p_.full_calculated_mechanism2(
+        tag, "dat", path=p_.chemkin(root_path)
+    )
+    print(f" - Control: {full_control_ckin}")
+    automech.io.chemkin.write.mechanism(full_control_mech, full_control_ckin)
+    print(f" - Calculated: {full_calc1_ckin}")
+    automech.io.chemkin.write.mechanism(full_calc1_mech, full_calc1_ckin)
+    print(f" - Comparison: {full_calc2_ckin}")
+    automech.io.chemkin.write.mechanism(full_calc2_mech, full_calc2_ckin)
 
-    # Write
-    print("\nWriting mechanism to JSON...")
-    automech.io.write(
-        cal_sub_mech, p_.calculated_mechanism(tag, "json", path=p_.data(root_path))
+    print("Converting ChemKin mechanism to Cantera YAML...")
+    full_control_yaml = p_.full_control_mechanism(
+        tag, "yaml", path=p_.cantera(root_path)
     )
-    automech.io.write(
-        con_mech, p_.full_control_mechanism(tag, "json", path=p_.data(root_path))
+    full_calc1_yaml = p_.full_calculated_mechanism1(
+        tag, "yaml", path=p_.cantera(root_path)
     )
-    automech.io.write(
-        cal_mech, p_.full_calculated_mechanism(tag, "json", path=p_.data(root_path))
+    full_calc2_yaml = p_.full_calculated_mechanism2(
+        tag, "yaml", path=p_.cantera(root_path)
     )
+    Parser.convert_mech(full_control_ckin, out_name=full_control_yaml)
+    Parser.convert_mech(full_calc1_ckin, out_name=full_calc1_yaml)
+    Parser.convert_mech(full_calc2_ckin, out_name=full_calc2_yaml)
 
-    print("\nWriting mechanism to Chemkin...")
-    con_path = p_.full_control_mechanism(tag, "dat", path=p_.chemkin(root_path))
-    print(f"Control: {con_path}")
-    automech.io.chemkin.write.mechanism(con_mech, con_path)
-    cal_path = p_.full_calculated_mechanism(tag, "dat", path=p_.chemkin(root_path))
-    print(f"Calculated: {cal_path}")
-    automech.io.chemkin.write.mechanism(cal_mech, cal_path)
-
-    print("\nConverting ChemKin mechanism to Cantera YAML...")
-    Parser.convert_mech(
-        con_path,
-        out_name=p_.full_control_mechanism(tag, "yaml", path=p_.cantera(root_path)),
-    )
-    Parser.convert_mech(
-        cal_path,
-        out_name=p_.full_calculated_mechanism(tag, "yaml", path=p_.cantera(root_path)),
-    )
-
-    print("\nValidating Cantera model...")
-    cantera.Solution(
-        p_.full_calculated_mechanism(tag, "yaml", path=p_.cantera(root_path))
-    )
+    print("Validating Cantera model...")
+    cantera.Solution(full_control_yaml)  # type: ignore
+    cantera.Solution(full_calc1_yaml)  # type: ignore
+    cantera.Solution(full_calc2_yaml)  # type: ignore
 
 
 def plot_rates(tag: str, root_path: str | Path) -> None:
