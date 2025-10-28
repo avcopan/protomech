@@ -59,6 +59,14 @@ class ReactionRate(Model):
     rate: polars.Struct
 
 
+class ReactionRateType(Model):
+    """Reaction table with rate."""
+
+    well_skipping: bool
+    cleared: bool
+    partially_cleared: bool
+
+
 assert all(
     f in pandera_.columns([Reaction, ReactionRate])
     for f in ac.rate.Reaction.model_fields

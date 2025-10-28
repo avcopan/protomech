@@ -9,14 +9,15 @@ from pathlib import Path
 
 import altair
 import cantera
-import polars
+import polars as pl
 from cantera.ck2yaml import Parser
 
 import automech
 from automech import Mechanism
-from automech.reaction import Reaction, ReactionSorted
+from automech.reaction import Reaction, ReactionRate, ReactionRateType, ReactionSorted
 from automech.species import Species
 from automech.util import c_
+from protomech import mess
 
 from . import p_, reactors
 from .util import previous_tag, previous_tags
@@ -160,18 +161,14 @@ def augment_calculation(
     ste_mech_ = automech.with_fake_sort_data(ste_mech_, offset=offset)
 
     # Augment
-    gen_mech.reactions = polars.concat(
+    gen_mech.reactions = pl.concat(
         [gen_mech0.reactions, gen_mech_.reactions], how="diagonal_relaxed"
     )
-    gen_mech.species = polars.concat(
-        [gen_mech0.species, gen_spc_], how="diagonal_relaxed"
-    )
-    ste_mech.reactions = polars.concat(
+    gen_mech.species = pl.concat([gen_mech0.species, gen_spc_], how="diagonal_relaxed")
+    ste_mech.reactions = pl.concat(
         [ste_mech0.reactions, ste_mech_.reactions], how="diagonal_relaxed"
     )
-    ste_mech.species = polars.concat(
-        [ste_mech0.species, ste_spc_], how="diagonal_relaxed"
-    )
+    ste_mech.species = pl.concat([ste_mech0.species, ste_spc_], how="diagonal_relaxed")
 
     # Write
     print("\nWriting mechanism...")
@@ -233,7 +230,7 @@ def prepare_calculation(
     )
 
 
-def prepare_comparison(tag: str, root_path: str | Path) -> Mechanism:
+def prepare_comparison(tag: str, root_path: str | Path) -> None:
     """Prepare comparisons to the parent mechanism.
     Update previous version with new species/reactions.
 
@@ -263,7 +260,7 @@ def prepare_comparison(tag: str, root_path: str | Path) -> Mechanism:
     # Copy prefixed orig_reactants, orig_products to reactants, products
     to_arg = dict(zip(pre_cols0, cols, strict=True))
     ste_rxn_df = ste_rxn_df.with_columns(
-        polars.col(c0).alias(c) for c0, c in to_arg.items()
+        pl.col(c0).alias(c) for c0, c in to_arg.items()
     )
 
     # Left-update to pull in data and directions
@@ -274,9 +271,9 @@ def prepare_comparison(tag: str, root_path: str | Path) -> Mechanism:
 
     # Determine final columns with stereo by comparison to see if the direction
     # needs to be reversed
-    match = polars.when(
-        (polars.col(cols0[0]) == polars.col(pre_cols0[0]))
-        & (polars.col(cols0[1]) == polars.col(pre_cols0[1]))
+    match = pl.when(
+        (pl.col(cols0[0]) == pl.col(pre_cols0[0]))
+        & (pl.col(cols0[1]) == pl.col(pre_cols0[1]))
     )
     ste_rxn_df = ste_rxn_df.with_columns(
         match.then(pre_cols[0]).otherwise(pre_cols[1]).alias(cols[0])
@@ -295,7 +292,6 @@ def prepare_comparison(tag: str, root_path: str | Path) -> Mechanism:
     comp_path = p_.comparison_mechanism(tag, ext="json", path=p_.data(root_path))
     print(comp_path)
     automech.io.write(comp_mech, comp_path)
-
 
 
 def gather_statistics(tag: str, root_path: str | Path) -> None:
@@ -338,11 +334,152 @@ def gather_statistics(tag: str, root_path: str | Path) -> None:
 
     # Print statistics summary
     print("Statistics summary:\n")
-    stat_df = polars.DataFrame(data)
+    stat_df = pl.DataFrame(data)
     print(stat_df)
 
 
-def prepare_simulation(tag: str, root_path: str | Path) -> None:
+def prepare_simulation(
+    tag: str,
+    stoich: str,
+    therm_tag: str,
+    root_path: str | Path,
+    *,
+    clear_nodes: Sequence[str] = (),
+    clear_edges: Sequence[tuple[str, str]] = (),
+    T_range: tuple[float, float] = (300, 1200),
+    T_vals=(600, 700, 800, 900, 1000, 1100, 1200),
+    P_vals=(0.1, 1, 10, 100),
+    T_drop=(300, 400),
+    A_fill=1e-20,
+) -> None:
+    """Prepare simulation from MESS output.
+
+    :param tag: Mechanism tag
+    :param stoich: Stoichiometry
+    :param tag0: Source mechanism tag
+    :param root_path: Project root directory
+    """
+    print(f"Reading in source mechanism and selecting {stoich} PES...")
+    mech_path = p_.stereo_mechanism(tag, "json", p_.data(root_path))
+    mech = automech.io.read(mech_path)
+    mech.reactions = automech.reaction.select_pes(mech.reactions, stoich)
+    mech = automech.without_unused_species(mech)
+
+    print("Adding thermochemistry data...")
+    therm_path = p_.ckin(root_path, therm_tag)
+    therm_file = therm_path / "all_therm.ckin_1"
+    mech = automech.io.chemkin.update.thermo(mech, therm_file)
+
+    print("Post-processing rate data...")
+    print(" - Reading in MESS input...")
+    mess_path = p_.mess_final(root_path) / stoich
+    mess_inp = mess_path / "mess.inp"
+    surf0 = mess.surf.from_mess_input(mess_inp)
+
+    print(" - Reading in MESS output...")
+    mess_out = mess_path / "rate.out"
+    surf0 = mess.surf.with_mess_output_rates(surf0, mess_out=mess_out)
+
+    print(" - Integrating over fake nodes...")
+    surf = mess.surf.absorb_fake_nodes(surf0)
+
+    print(" - Enforcing equal enantiomer rates...")
+    surf = mess.surf.enforce_equal_enantiomer_rates(surf, tol=0.1)
+
+    if clear_nodes:
+        print(f" - Clearing rates for nodes {clear_nodes}...")
+        clear_node_keys = [
+            mess.surf.node_key_from_label(surf, label) for label in clear_nodes
+        ]
+        surf = mess.surf.clear_node_rates(surf, keys=clear_node_keys)
+
+    if clear_edges:
+        print(f" - Clearing rates for edges {clear_edges}...")
+        clear_edge_keys = [
+            mess.surf.edge_key_from_labels(surf, labels) for labels in clear_edges
+        ]
+        surf = mess.surf.clear_edge_rates(surf, keys=clear_edge_keys)
+
+    print(" - Clearing unfittable pressure ranges...")
+    surf = mess.surf.clear_unfittable_pressure_ranges(surf)
+
+    print(" - Removing unfittable well-skipping rates...")
+    unfit_skip_rate_keys = mess.surf.unfittable_rate_keys(surf, direct=False)
+    surf = mess.surf.remove_well_skipping_rates(surf, unfit_skip_rate_keys)
+
+    print(" - Removing irrelevant well-skipping rates...")
+    irrel_skip_rate_keys = mess.surf.irrelevant_rate_keys(
+        surf, T=T_vals, P=P_vals, direct=False, min_branch_frac=0.01
+    )
+    surf = mess.surf.remove_well_skipping_rates(surf, irrel_skip_rate_keys)
+
+    print(" - Removing isolated nodes...")
+    surf = mess.surf.remove_isolates(surf)
+
+    print(" - Checking for bad pressure-independence well-skipping rates...")
+    bad_skip_rate_keys = mess.surf.bad_pressure_independence_rate_keys(
+        surf, T_vals=T_vals, direct=False
+    )
+    if bad_skip_rate_keys:
+        msg = f"Bad pressure-independent well-skipping rates: {bad_skip_rate_keys}"
+        raise ValueError(msg)
+
+    print(" - Checking for non-irrelevant bad pressure-independence direct rates...")
+    all_bad_rate_keys = mess.surf.bad_pressure_independence_rate_keys(
+        surf, T_vals=T_vals, well_skipping=False
+    )
+    irrel_rate_keys = mess.surf.irrelevant_rate_keys(
+        surf, T=T_vals, P=P_vals, well_skipping=False, min_branch_frac=0.01
+    )
+    bad_rate_keys = set(all_bad_rate_keys) - set(irrel_rate_keys)
+    if bad_rate_keys:
+        msg = f"Bad pressure-independent well-skipping rates: {bad_skip_rate_keys}"
+        raise ValueError(msg)
+
+    print(" - Clearing bad pressure-independence direct rates that are irrelevant...")
+    irrel_bad_rate_keys = set(all_bad_rate_keys) & set(irrel_rate_keys)
+    surf = mess.surf.clear_rates(surf, irrel_bad_rate_keys)
+
+    print(" - Determining irrelevant pressures...")
+    irrel_pressure_dct = mess.surf.irrelevant_rate_pressures(
+        surf, T=T_vals, P=P_vals, min_branch_frac=0.01
+    )
+
+    print(" - Fitting rates...")
+    surf = mess.surf.fit_rates(
+        surf,
+        T_drop=T_drop,
+        A_fill=A_fill,
+        bad_fit="raise",
+        bad_fit_fill_pressures_dct=irrel_pressure_dct,
+    )
+
+    print("Adding rate data...")
+    print(" - Matching rates to reaction directions...")
+    surf = mess.surf.match_rate_directions(surf, mech)
+
+    print(" - Building direct reactions DataFrame...")
+    rate_data = []
+    for rate_key in mess.surf.rate_keys(surf, well_skipping=False):
+        key1, key2 = rate_key
+        node1 = mess.surf.node_object(surf, key1)
+        node2 = mess.surf.node_object(surf, key2)
+        rate = surf.rate_fits[rate_key]
+        rate_data.append(
+            {
+                Reaction.reactants: node1.names_list,  # type: ignore
+                Reaction.products: node2.names_list,  # type: ignore
+                ReactionRate.reversible: True,
+                ReactionRate.rate: rate.model_dump(),
+                ReactionRateType.well_skipping: False,
+            }
+        )
+
+    rate_df = pl.DataFrame(rate_data, infer_schema_length=None)
+    print(rate_df)
+
+
+def prepare_simulation_old(tag: str, root_path: str | Path) -> None:
     """Read calculation results and prepare simulation.
 
     :param tag: Mechanism tag
@@ -447,15 +584,15 @@ def prepare_simulation_species(tag: str, root_path: str | Path) -> None:
 
     # Read in data and rename species to match simulation
     print("\nReading in species...")
-    name_df0 = polars.read_csv(data_path / "hill" / "species.csv")
+    name_df0 = pl.read_csv(data_path / "hill" / "species.csv")
 
     # Form join columns with original (stereo-free) names
     tmp_col = c_.temp()
     name_col = Species.name
     name_col0 = c_.orig(name_col)
-    name_df0 = name_df0.with_columns(polars.col(name_col0).alias(tmp_col))
+    name_df0 = name_df0.with_columns(pl.col(name_col0).alias(tmp_col))
     name_df = mech.species.with_columns(
-        polars.col(name_col0).fill_null(polars.col(name_col)).alias(tmp_col)
+        pl.col(name_col0).fill_null(pl.col(name_col)).alias(tmp_col)
     ).select(name_col, tmp_col)
 
     # Join to add updated names
@@ -499,12 +636,12 @@ def run_o2_simulation(
     print("\nReading in species...")
     name_col = Species.name
     name_col0 = c_.orig(name_col)
-    name_df0 = polars.read_csv(data_path / "hill" / "species.csv")
+    name_df0 = pl.read_csv(data_path / "hill" / "species.csv")
     name_df = prepare_simulation_species(tag, root_path)
 
     # Read in concentration data
     print("\nReading in concentrations...")
-    conc_df = polars.read_csv(data_path / "hill" / "concentration.csv")
+    conc_df = pl.read_csv(data_path / "hill" / "concentration.csv")
     conc_df = conc_df.gather_every(gather_every)
     print(conc_df)
 
@@ -553,9 +690,7 @@ def run_o2_simulation(
             print(f"Error: {e}")
 
     print("\nExtracting results...")
-    sim_df = conc_df.with_columns(
-        polars.Series(s, xs) * 10**6 for s, xs in sim_dct.items()
-    )
+    sim_df = conc_df.with_columns(pl.Series(s, xs) * 10**6 for s, xs in sim_dct.items())
     print(sim_df)
 
     print("\nWriting results to CSV...")
@@ -596,13 +731,13 @@ def run_t_simulation(
     print("\nReading in species...")
     name_col = Species.name
     name_col0 = c_.orig(name_col)
-    name_df0 = polars.read_csv(data_path / "hill" / "species.csv")
+    name_df0 = pl.read_csv(data_path / "hill" / "species.csv")
     name_df = prepare_simulation_species(tag, root_path)
 
     # Read in concentration data
     print("\nReading in concentrations...")
-    conc_df = polars.read_csv(data_path / "hill" / "concentration.csv")
-    conc_df = conc_df.filter(polars.col("phi") == 1)
+    conc_df = pl.read_csv(data_path / "hill" / "concentration.csv")
+    conc_df = conc_df.filter(pl.col("phi") == 1)
     print(conc_df)
 
     # Determine concentrations for each point
@@ -613,7 +748,7 @@ def run_t_simulation(
 
     # Read in temperature data
     print("\nReading in temperatures...")
-    temp_df = polars.read_csv(data_path / "hill" / "T" / "temperature.csv")
+    temp_df = pl.read_csv(data_path / "hill" / "T" / "temperature.csv")
     temp_df = temp_df.gather_every(gather_every)
     temps = temp_df.get_column("temperature").to_list()
     print(temps)
@@ -658,9 +793,7 @@ def run_t_simulation(
             print(f"Error: {e}")
 
     print("\nExtracting results...")
-    sim_df = temp_df.with_columns(
-        polars.Series(s, xs) * 10**6 for s, xs in sim_dct.items()
-    )
+    sim_df = temp_df.with_columns(pl.Series(s, xs) * 10**6 for s, xs in sim_dct.items())
     print(sim_df)
 
     print("\nWriting results to CSV...")
@@ -699,18 +832,18 @@ def plot_o2_simulation(
     sources = [*line_sources, point_source] if point_source else line_sources
 
     # Read in simulation results
-    name_df = polars.read_csv(p_.simulation_species(tag, path=p_.cantera(root_path)))
-    name_df = name_df.filter(polars.col("Experiment").is_not_null())
+    name_df = pl.read_csv(p_.simulation_species(tag, path=p_.cantera(root_path)))
+    name_df = name_df.filter(pl.col("Experiment").is_not_null())
 
-    sim_df = polars.read_csv(
+    sim_df = pl.read_csv(
         p_.full_calculated_mechanism(tag, "csv", path=p_.cantera_o2(root_path))
     )
-    sim_df0 = polars.read_csv(
+    sim_df0 = pl.read_csv(
         p_.full_control_mechanism(tag, "csv", path=p_.cantera_o2(root_path))
     )
 
     data_path = p_.data(root_path)
-    data_dct = {s: polars.read_csv(data_path / "hill" / f"{s}.csv") for s in sources}
+    data_dct = {s: pl.read_csv(data_path / "hill" / f"{s}.csv") for s in sources}
     data_dct = {s: rename_columns(s, d, name_df) for s, d in data_dct.items()}
     data_dct[my_work_label] = sim_df
     line_sources.insert(0, my_work_label)
@@ -736,8 +869,8 @@ def plot_o2_simulation(
 
 
 def rename_columns(
-    source: str, data_df: polars.DataFrame, name_df: polars.DataFrame
-) -> polars.DataFrame:
+    source: str, data_df: pl.DataFrame, name_df: pl.DataFrame
+) -> pl.DataFrame:
     """Preprocess data for plotting.
 
     :param source: Data source
@@ -752,8 +885,8 @@ def rename_columns(
 
 
 def isolate_xy_columns(
-    source: str, data_df: polars.DataFrame | None, x_col: str, y_col: str
-) -> polars.DataFrame:
+    source: str, data_df: pl.DataFrame | None, x_col: str, y_col: str
+) -> pl.DataFrame:
     """Isolate x and y columns.
 
     :param source: Data source
@@ -781,7 +914,7 @@ COLOR_SEQUENCE = [
 
 
 def make_chart(
-    data_dct: dict[str, polars.DataFrame],
+    data_dct: dict[str, pl.DataFrame],
     x_col: str,
     y_col: str,
     line_sources: Sequence[str],

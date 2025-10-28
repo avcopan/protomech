@@ -1647,7 +1647,7 @@ def absorb_fake_nodes(surf: Surface) -> Surface:
     return surf
 
 
-def partially_unfittable_pressure_independent_rate_keys(
+def bad_pressure_independence_rate_keys(
     surf: Surface,
     T_vals: Sequence[float],
     *,
@@ -1662,7 +1662,7 @@ def partially_unfittable_pressure_independent_rate_keys(
     :param min_P_count: Minimum acceptable fittable pressure count
     :return: Surface
     """
-    unfit_keys = []
+    bad_rate_keys = []
     rate_keys_ = rate_keys(
         surf, direct=direct, well_skipping=well_skipping, empty=empty
     )
@@ -1675,8 +1675,8 @@ def partially_unfittable_pressure_independent_rate_keys(
             T=T_vals, tol=P_dep_tol
         )
         if is_partially_unfittable and is_pressure_independent:
-            unfit_keys.append(rate_key)
-    return unfit_keys
+            bad_rate_keys.append(rate_key)
+    return bad_rate_keys
 
 
 def unfittable_rate_keys(
@@ -1724,8 +1724,10 @@ def branching_fractions(
         for rate_key, rate in rates.items():
             with np.errstate(divide="ignore", invalid="ignore"):
                 branch_frac = rate(T=T, P=P) / total_rate_data
+                z = np.abs(
+                    (branch_frac - np.nanmean(branch_frac)) / np.nanstd(branch_frac)
+                )
             # Remove Z-score outliers
-            z = np.abs((branch_frac - branch_frac.mean()) / branch_frac.std())
             branch_frac[z > z_drop] = np.nan
             # Prevent well-skipping rates from "winning by default" (only non-NaN value)
             if rate_key in well_skipping_rate_keys:
