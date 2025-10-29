@@ -408,7 +408,7 @@ def postprocess_rate_data(
 
     print(" - Removing irrelevant well-skipping rates...")
     irrel_skip_rate_keys = mess.surf.irrelevant_rate_keys(
-        surf, T=T_vals, P=P_vals, direct=False, min_branch_frac=0.01
+        surf, T=T_vals, P=P_vals, direct=False, min_branch_frac=0.01, pairs_only=True
     )
     surf = mess.surf.remove_well_skipping_rates(surf, irrel_skip_rate_keys)
 

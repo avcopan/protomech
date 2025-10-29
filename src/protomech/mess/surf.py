@@ -1749,11 +1749,13 @@ def irrelevant_rate_keys(
     direct: bool = True,
     well_skipping: bool = True,
     min_branch_frac: float = 0.01,
+    pairs_only: bool = False,
 ) -> list[tuple[int, int]]:
     """Identify irrelevant rates by branching fraction.
 
     :param surf: Surface
     :param min_branch_frac: Minimum acceptable branching fraction
+    :param pairs_only: Only include pairs of irrelevant rates
     :return: Surface
     """
     surf = update_branching_fractions(surf)
@@ -1767,6 +1769,10 @@ def irrelevant_rate_keys(
         is_included = direct if is_direct else well_skipping
         if is_irrelevant and is_included:
             irrel_keys.append(rate_key)
+
+    if pairs_only:
+        irrel_keys = [(k1, k2) for k1, k2 in irrel_keys if (k2, k1) in irrel_keys]
+
     return irrel_keys
 
 
