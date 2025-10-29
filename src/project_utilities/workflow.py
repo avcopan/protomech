@@ -466,21 +466,21 @@ def postprocess_rate_data(
     )
 
     print("Writing mechanisms to JSON...")
-    calc_mech_json = p_.calculated_mechanism(
+    calc_mech_json = p_.calculated_pes_mechanism(
         tag, stoich, "json", path=p_.data(root_path)
     )
     print(f" - Calculated: {calc_mech_json}")
     automech.io.write(calc_mech, calc_mech_json)
 
     print("Writing mechanisms to Chemkin...")
-    calc_mech_ckin = p_.calculated_mechanism(
+    calc_mech_ckin = p_.calculated_pes_mechanism(
         tag, stoich, "dat", path=p_.chemkin(root_path)
     )
     print(f" - Calculated: {calc_mech_ckin}")
     automech.io.chemkin.write.mechanism(calc_mech, calc_mech_ckin)
 
     print("Writing mechanisms to Cantera...")
-    calc_mech_yaml = p_.calculated_mechanism(
+    calc_mech_yaml = p_.calculated_pes_mechanism(
         tag, stoich, "yaml", path=p_.cantera(root_path)
     )
     print(f" - Calculated: {calc_mech_yaml}")
@@ -503,7 +503,7 @@ def prepare_simulation(tag: str, stoichs: Sequence[str], root_path: str | Path) 
     print("Reading mechanisms...")
     par_mech_json = p_.parent_mechanism("json", path=p_.data(root_path))
     mech_jsons = [
-        p_.calculated_mechanism(tag, s, "json", path=p_.data(root_path))
+        p_.calculated_pes_mechanism(tag, s, "json", path=p_.data(root_path))
         for s in stoichs
     ]
     print(f" - Parent: {par_mech_json}")
@@ -519,10 +519,13 @@ def prepare_simulation(tag: str, stoichs: Sequence[str], root_path: str | Path) 
     print("Writing mechanism to JSON...")
     full_control_json = p_.full_control_mechanism(tag, "json", path=p_.data(root_path))
     full_calc_json = p_.full_calculated_mechanism(tag, "json", path=p_.data(root_path))
-    print(f" - Control: {full_control_json}")
+    calc_json = p_.calculated_mechanism(tag, "json", path=p_.data(root_path))
+    print(f" - Full control: {full_control_json}")
     automech.io.write(full_control_mech, full_control_json)
-    print(f" - Calculated: {full_calc_json}")
+    print(f" - Full calculated: {full_calc_json}")
     automech.io.write(full_calc_mech, full_calc_json)
+    print(f" - Calculated: {calc_json}")
+    automech.io.write(mech, calc_json)
 
     print("Writing mechanism to Chemkin...")
     full_control_ckin = p_.full_control_mechanism(
@@ -531,10 +534,13 @@ def prepare_simulation(tag: str, stoichs: Sequence[str], root_path: str | Path) 
     full_calc_ckin = p_.full_calculated_mechanism(
         tag, "dat", path=p_.chemkin(root_path)
     )
-    print(f" - Control: {full_control_ckin}")
+    calc_ckin = p_.calculated_mechanism(tag, "dat", path=p_.chemkin(root_path))
+    print(f" - Full control: {full_control_ckin}")
     automech.io.chemkin.write.mechanism(full_control_mech, full_control_ckin)
-    print(f" - Calculated: {full_calc_ckin}")
+    print(f" - Full calculated: {full_calc_ckin}")
     automech.io.chemkin.write.mechanism(full_calc_mech, full_calc_ckin)
+    print(f" - Calculated: {calc_ckin}")
+    automech.io.chemkin.write.mechanism(mech, calc_ckin)
 
     print("Converting ChemKin mechanism to Cantera YAML...")
     full_control_yaml = p_.full_control_mechanism(
@@ -561,14 +567,14 @@ def plot_rates(tag: str, root_path: str | Path) -> None:
     print("\nReading mechanisms...")
     par_mech = automech.io.read(p_.parent_mechanism("json", path=p_.data(root_path)))
     cal_sub_mech = automech.io.read(
-        p_.calculated_mechanism(tag, "json", path=p_.data(root_path))
+        p_.calculated_pes_mechanism(tag, "json", path=p_.data(root_path))
     )
 
     # Compare calculated to parent mechanism
     print("\nCompare calculated mechanism to parent mechanism...")
     tags0 = previous_tags(tag)
     cal_paths0 = [
-        p_.calculated_mechanism(t, "json", path=p_.data(root_path)) for t in tags0
+        p_.calculated_pes_mechanism(t, "json", path=p_.data(root_path)) for t in tags0
     ]
     cal_mechs0 = list(map(automech.io.read, cal_paths0))
     trues = [True] * len(tags0)

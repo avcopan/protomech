@@ -93,11 +93,18 @@ def comparison_mechanism(
     return handle_extension_and_path(f"{tag}_comp", ext=ext, path=path)
 
 
-def calculated_mechanism(
+def calculated_pes_mechanism(
     tag: str, stoich: str, ext: str | None = None, path: str | Path | None = None
 ) -> str | Path:
     """Determine the name of the calculated mechanism."""
-    return handle_extension_and_path(f"{tag}_{stoich}_calc", ext=ext, path=path)
+    return handle_extension_and_path(f"{tag}_calc_{stoich}", ext=ext, path=path)
+
+
+def calculated_mechanism(
+    tag: str, ext: str | None = None, path: str | Path | None = None
+) -> str | Path:
+    """Determine the name of the full (merged) calculated mechanism."""
+    return handle_extension_and_path(f"{tag}_calc", ext=ext, path=path)
 
 
 def full_calculated_mechanism(
