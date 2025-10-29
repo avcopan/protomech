@@ -964,7 +964,21 @@ def remove_nodes(surf: Surface, keys: Collection[int]) -> Surface:
     nodes = [n for n in surf.nodes if n.key not in keys]
     edges = [e for e in surf.edges if not e.key & keys]
     rates = {k: v for k, v in surf.rates.items() if not set(k) & keys}
-    return Surface(nodes=nodes, edges=edges, mess_header=surf.mess_header, rates=rates)
+    rate_fits = {k: v for k, v in surf.rate_fits.items() if not set(k) & keys}
+    branching_fractions = {
+        k: v for k, v in surf.branching_fractions.items() if not set(k) & keys
+    }
+    loss_rates = {k: v for k, v in surf.loss_rates.items() if k not in keys}
+    return surf.model_copy(
+        update={
+            "nodes": nodes,
+            "edges": edges,
+            "rates": rates,
+            "rate_fits": rate_fits,
+            "branching_fractions": branching_fractions,
+            "loss_rates": loss_rates,
+        }
+    )
 
 
 def remove_edges(surf: Surface, keys: Collection[Collection[int]]) -> Surface:
@@ -977,8 +991,17 @@ def remove_edges(surf: Surface, keys: Collection[Collection[int]]) -> Surface:
     keys = list(map(frozenset, keys))
     edges = [e for e in surf.edges if e.key not in keys]
     rates = {k: v for k, v in surf.rates.items() if frozenset(k) not in keys}
-    return Surface(
-        nodes=surf.nodes, edges=edges, mess_header=surf.mess_header, rates=rates
+    rate_fits = {k: v for k, v in surf.rate_fits.items() if frozenset(k) not in keys}
+    branching_fractions = {
+        k: v for k, v in surf.branching_fractions.items() if frozenset(k) not in keys
+    }
+    return surf.model_copy(
+        update={
+            "edges": edges,
+            "rates": rates,
+            "rate_fits": rate_fits,
+            "branching_fractions": branching_fractions,
+        }
     )
 
 
@@ -1030,9 +1053,7 @@ def clear_node_rates(surf: Surface, keys: Collection[int]) -> Surface:
         elif frozenset(rate_key) in edge_keys_:
             rates[rate_key] = rate.clear()
 
-    return Surface(
-        nodes=surf.nodes, edges=surf.edges, mess_header=surf.mess_header, rates=rates
-    )
+    return surf.model_copy(update={"rates": rates})
 
 
 def clear_edge_rates(
@@ -1097,9 +1118,7 @@ def extend(
     """
     nodes = [*surf.nodes, *nodes]
     edges = [*surf.edges, *edges]
-    return Surface(
-        nodes=nodes, edges=edges, mess_header=surf.mess_header, rates=surf.rates
-    )
+    return surf.model_copy(update={"nodes": nodes, "edges": edges})
 
 
 def node_induced_subsurface(surf: Surface, keys: Collection[int]) -> Surface:
@@ -1112,9 +1131,7 @@ def node_induced_subsurface(surf: Surface, keys: Collection[int]) -> Surface:
     keys = set(keys)
     nodes = [n for n in surf.nodes if n.key in keys]
     edges = [e for e in surf.edges if e.key <= keys]
-    return Surface(
-        nodes=nodes, edges=edges, mess_header=surf.mess_header, rates=surf.rates
-    )
+    return surf.model_copy(update={"nodes": nodes, "edges": edges})
 
 
 def split_stoichiometries(surf: Surface, mech: Mechanism) -> dict[str, Surface]:
@@ -1724,43 +1741,6 @@ def unfittable_rate_keys(
     return unfit_keys
 
 
-def branching_fractions(
-    surf: Surface, T: Sequence[float], P: Sequence[float], *, z_drop: float = 3.0
-) -> dict[tuple[int, int], np.ndarray]:
-    """Determine branching fraction for each rate.
-
-    Since the data tend to be noisy, one can drop outliers by Z-score.
-
-    :param surf: Surface
-    :param T: Temperatures for evaluating branching fraction
-    :param P: Pressures for evaluating branching fraction
-    :param z_drop: Z-score for removing outliers
-    :return: Branching fractions
-    """
-    well_skipping_rate_keys = rate_keys(surf, direct=False, well_skipping=True)
-    surf = surf.model_copy(deep=True)
-    frac_dct = {}
-    for key1 in node_keys(surf):
-        rates = {(k1, k2): v for (k1, k2), v in surf.rates.items() if k1 == key1}
-        # Prevent winning by default
-        rates_data = np.array([r(T=T, P=P) for r in rates.values()], dtype=float)
-        total_rate_data = np.sum(np.nan_to_num(rates_data, nan=0.0), axis=0)
-        for rate_key, rate in rates.items():
-            with np.errstate(divide="ignore", invalid="ignore"):
-                branch_frac = rate(T=T, P=P) / total_rate_data
-                z = np.abs(
-                    (branch_frac - np.nanmean(branch_frac)) / np.nanstd(branch_frac)
-                )
-            # Remove Z-score outliers
-            branch_frac[z > z_drop] = np.nan
-            # Prevent well-skipping rates from "winning by default" (only non-NaN value)
-            if rate_key in well_skipping_rate_keys:
-                valid_count = np.sum(np.isfinite(rates_data), axis=0)
-                branch_frac[valid_count <= 1] = np.nan
-            frac_dct[rate_key] = branch_frac
-    return frac_dct
-
-
 def irrelevant_rate_keys(
     surf: Surface,
     T: Sequence[float],
@@ -1769,7 +1749,6 @@ def irrelevant_rate_keys(
     direct: bool = True,
     well_skipping: bool = True,
     min_branch_frac: float = 0.01,
-    z_drop: float = 3.0,
 ) -> list[tuple[int, int]]:
     """Identify irrelevant rates by branching fraction.
 
@@ -1777,14 +1756,14 @@ def irrelevant_rate_keys(
     :param min_branch_frac: Minimum acceptable branching fraction
     :return: Surface
     """
+    surf = update_branching_fractions(surf)
     edge_keys_ = edge_keys(surf)
-    branch_fracs_dct = branching_fractions(surf, T=T, P=P, z_drop=z_drop)
     irrel_keys = []
-    for rate_key, branch_fracs in branch_fracs_dct.items():
-        edge_key = frozenset(rate_key)
-        max_branch_frac = np.nanmax(np.nan_to_num(branch_fracs, nan=0.0))
+    for rate_key in rate_keys(surf, direct=direct, well_skipping=well_skipping):
+        branch_frac = surf.branching_fractions[rate_key]
+        max_branch_frac = np.nanmax(np.nan_to_num(branch_frac(T=T, P=P), nan=0.0))
         is_irrelevant = max_branch_frac <= min_branch_frac
-        is_direct = edge_key in edge_keys_
+        is_direct = frozenset(rate_key) in edge_keys_
         is_included = direct if is_direct else well_skipping
         if is_irrelevant and is_included:
             irrel_keys.append(rate_key)
@@ -1797,7 +1776,6 @@ def irrelevant_rate_pressures(
     P: Sequence[float],
     *,
     min_branch_frac: float = 0.01,
-    z_drop: float = 3.0,
 ) -> dict[tuple[int, int], list[float]]:
     """Identify pressures at which rates are irrelevant.
 
@@ -1805,10 +1783,13 @@ def irrelevant_rate_pressures(
     :param min_branch_frac: Minimum acceptable branching fraction
     :return: Surface
     """
-    branch_fracs_dct = branching_fractions(surf, T=T, P=P, z_drop=z_drop)
+    surf = update_branching_fractions(surf)
     irrel_pressures = {}
-    for rate_key, branch_frac_arr in branch_fracs_dct.items():
-        max_branch_frac = np.nanmax(np.nan_to_num(branch_frac_arr, nan=0.0), axis=0)
+    for rate_key in rate_keys(surf):
+        branch_frac = surf.branching_fractions[rate_key]
+        max_branch_frac = np.nanmax(
+            np.nan_to_num(branch_frac(T=T, P=P), nan=0.0), axis=0
+        )
         Ps = np.asarray(P)[max_branch_frac <= min_branch_frac].tolist()
         irrel_pressures[rate_key] = Ps
     return irrel_pressures
