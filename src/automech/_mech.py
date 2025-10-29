@@ -1754,6 +1754,7 @@ def display_branching_fractions(
     well_skipping = polars.col(ReactionRateExtra.well_skipping)
 
     for rcts in rcts_lst:
+        print("\n---------------------------------------------")
         # Gather data
         rct_match = reaction.reagents_match_expression(
             rcts,
