@@ -1705,8 +1705,12 @@ def display_branching_fractions(
     :param P: Presure
     :param reactants_list: Reactants
     """
+    from rdkit.Chem import Draw
+
     col_forw = c_.temp()
     col_back = c_.temp()
+    col_rate = c_.temp()
+    col_prod = c_.temp()
     rxn_df = mech.reactions
     rxn_df = reaction.with_rate_objects(
         rxn_df,
@@ -1724,8 +1728,13 @@ def display_branching_fractions(
     all_rcts_lst = mit.unique_everseen(rxn_df.get_column(Reaction.reactants).to_list())  # type: ignore
     rcts_lst = all_rcts_lst if reactants_list is None else reactants_list
 
+    col_forw_dct = {col_forw: col_rate, Reaction.products: col_prod}  # type: ignore
+    col_back_dct = {col_back: col_rate, Reaction.reactants: col_prod}  # type: ignore
+    chi_dct = df_.lookup_dict(mech.species, Species.name, Species.amchi)
+    well_skipping = polars.col(ReactionRateExtra.well_skipping)
+
     for rcts in rcts_lst:
-        print(rcts)
+        # Branching fraction
         rct_match = reaction.reagents_match_expression(
             rcts,
             col=Reaction.reactants,  # type: ignore
@@ -1735,18 +1744,18 @@ def display_branching_fractions(
             col=Reaction.products,  # type: ignore
         )
 
-        forw_rate_df = rxn_df.filter(rct_match)
-        back_rate_df = rxn_df.filter(prd_match)
+        forw_rate_df = rxn_df.filter(rct_match).rename(col_forw_dct)
+        back_rate_df = rxn_df.filter(prd_match).rename(col_back_dct)
+        rate_df = polars.concat([forw_rate_df, back_rate_df], how="diagonal_relaxed")
+        rate_df = rate_df.sort(well_skipping)
 
-        branch_fracs = []
-        branch_fracs.extend(forw_rate_df.get_column(col_forw).to_list())
-        branch_fracs.extend(back_rate_df.get_column(col_back).to_list())
+        branch_fracs = rate_df.get_column(col_rate).to_list()
 
         objs = [r.rate for r in branch_fracs]
         labels = ["+".join(r.products) for r in branch_fracs]
 
-        objs.append(functools.reduce(operator.add, objs))
-        labels.append("total")
+        objs.insert(0, functools.reduce(operator.add, objs))
+        labels.insert(0, "total")
 
         chart = ac.rate.data.display(
             objs,
@@ -1758,6 +1767,32 @@ def display_branching_fractions(
             y_unit="",
         )
         ipy_display(chart)
+
+        # Reactants
+        name = "+".join(rcts)
+        chi = automol.amchi.join([chi_dct[n] for n in rcts])
+        mol = automol.amchi.rdkit_molecule(chi)
+        ipy_display(Draw.MolsToImage([mol], legends=[name]))
+
+        # Products
+        direct_prods = rate_df.filter(~well_skipping).get_column(col_prod).to_list()
+        direct_names = list(map("+".join, direct_prods))
+        direct_chis = list(
+            automol.amchi.join([chi_dct[n] for n in p]) for p in direct_prods
+        )
+        direct_mols = list(map(automol.amchi.rdkit_molecule, direct_chis))
+        print("Direct products:")
+        ipy_display(Draw.MolsToImage(direct_mols, legends=direct_names))
+
+        skip_prods = rate_df.filter(well_skipping).get_column(col_prod).to_list()
+        if skip_prods:
+            skip_names = list(map("+".join, skip_prods))
+            skip_chis = list(
+                automol.amchi.join([chi_dct[n] for n in p]) for p in skip_prods
+            )
+            skip_mols = list(map(automol.amchi.rdkit_molecule, skip_chis))
+            print("Well-skipping products:")
+            ipy_display(Draw.MolsToImage(skip_mols, legends=skip_names))
 
 
 # Helpers

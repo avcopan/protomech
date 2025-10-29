@@ -1628,7 +1628,7 @@ def with_mess_output_rates(surf: Surface, mess_out: str | Path) -> Surface:
     return surf
 
 
-def update_branching_fractions(surf: Surface, in_place: bool = False) -> Surface:
+def update_branching_fractions(surf: Surface, *, in_place: bool = False) -> Surface:
     """Update branching fractions for a surface.
 
     :param surf: Surface
@@ -1637,9 +1637,11 @@ def update_branching_fractions(surf: Surface, in_place: bool = False) -> Surface
     surf = surf if in_place else surf.model_copy(deep=True)
     for rate_key in rate_keys(surf):
         reac_key, _ = rate_key
-        surf.branching_fractions[rate_key] = (
-            surf.rates[rate_key] / surf.loss_rates[reac_key]
-        )
+        branch_frac = surf.rates[rate_key] / surf.loss_rates[reac_key]
+        k_data = branch_frac.k_data.copy()
+        k_data[(k_data < 0.0) | (k_data > 1.0)] = np.nan
+        branch_frac = branch_frac.model_copy(update={"k_data": k_data})
+        surf.branching_fractions[rate_key] = branch_frac
     return surf
 
 
@@ -1956,7 +1958,7 @@ def update_mechanism_rates(
     # Add direct rates
     forw_rate_keys = forward_rate_keys(surf, mech, direct=True, well_skipping=False)
     rate_df = reaction_rates_dataframe(
-        surf, forw_rate_keys, A_fill=A_fill, surf_data=surf_data
+        surf, forw_rate_keys, A_fill=A_fill, well_skipping=False, surf_data=surf_data
     )
     rxn_df = automech.reaction.left_update(rxn_df, rate_df, drop_orig=drop_orig)
 
@@ -1966,7 +1968,11 @@ def update_mechanism_rates(
     )
     if forw_skip_rate_keys:
         skip_rate_df = reaction_rates_dataframe(
-            surf, forw_skip_rate_keys, A_fill=A_fill, surf_data=surf_data
+            surf,
+            forw_skip_rate_keys,
+            A_fill=A_fill,
+            well_skipping=True,
+            surf_data=surf_data,
         )
         skip_rate_df = automech.reaction.bootstrap(
             skip_rate_df.to_dict(as_series=False),  # type: ignore
@@ -1982,6 +1988,7 @@ def reaction_rates_dataframe(
     rate_keys: Sequence[tuple[int, int]],
     *,
     A_fill: float,
+    well_skipping: bool,
     surf_data: Surface | None = None,
 ) -> pl.DataFrame:
     """Build reaction rates dataframe.
@@ -2018,7 +2025,7 @@ def reaction_rates_dataframe(
                 ReactionRateExtra.rev_rate: rev_rate_fit.model_dump(),
                 ReactionRateExtra.rev_rate_data: rev_rate.model_dump(),
                 ReactionRateExtra.rev_branch_frac: rev_branch_frac.model_dump(),
-                ReactionRateExtra.well_skipping: False,
+                ReactionRateExtra.well_skipping: well_skipping,
                 ReactionRateExtra.cleared: rate_fit.is_cleared(A_fill=A_fill),
                 ReactionRateExtra.partially_cleared: rate_fit.is_partially_cleared(
                     A_fill=A_fill
