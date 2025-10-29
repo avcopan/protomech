@@ -350,7 +350,7 @@ def postprocess_rate_data(
     P_vals=(0.1, 1, 10, 100),
     T_drop=(300, 400),
     A_fill=1e-20,
-) -> tuple[Mechanism, Mechanism]:
+) -> Mechanism:
     """Prepare simulation from MESS output.
 
     :param tag: Mechanism tag
@@ -364,17 +364,10 @@ def postprocess_rate_data(
     mech.reactions = automech.reaction.select_pes(mech.reactions, stoich)
     mech = automech.without_unused_species(mech)
 
-    print(f"Reading in comparison source mechanism and selecting {stoich} PES...")
-    comp_mech_path = p_.stereo_mechanism(tag, "json", p_.data(root_path))
-    comp_mech = automech.io.read(comp_mech_path)
-    comp_mech.reactions = automech.reaction.select_pes(comp_mech.reactions, stoich)
-    comp_mech = automech.without_unused_species(comp_mech)
-
     print("Adding thermochemistry data...")
     therm_path = p_.ckin(root_path, therm_tag)
     therm_file = therm_path / "all_therm.ckin_1"
     mech = automech.io.chemkin.update.thermo(mech, therm_file)
-    comp_mech = automech.io.chemkin.update.thermo(comp_mech, therm_file)
 
     print("Post-processing rate data...")
     print(" - Reading in MESS input...")
@@ -467,62 +460,38 @@ def postprocess_rate_data(
     )
 
     print("Adding rate data...")
-    print(" - Matching rates to reaction directions...")
-    comp_surf = mess.surf.match_rate_directions(surf, comp_mech)
-    surf = mess.surf.match_rate_directions(surf, mech)
-
     print(" - Adding direct rate data...")
     calc_mech1 = mess.surf.update_mechanism_rates(
         surf, mech, A_fill=A_fill, surf_data=surf0, drop_orig=True
-    )
-    calc_mech2 = mess.surf.update_mechanism_rates(
-        comp_surf, comp_mech, A_fill=A_fill, surf_data=surf0, drop_orig=False
     )
 
     print("Writing mechanisms to JSON...")
     calc_mech1_json = p_.calculated_mechanism1(
         tag, stoich, "json", path=p_.data(root_path)
     )
-    calc_mech2_json = p_.calculated_mechanism2(
-        tag, stoich, "json", path=p_.data(root_path)
-    )
     print(f" - Calculated: {calc_mech1_json}")
     automech.io.write(calc_mech1, calc_mech1_json)
-    print(f" - Comparison: {calc_mech2_json}")
-    automech.io.write(calc_mech2, calc_mech2_json)
 
     print("Writing mechanisms to Chemkin...")
     calc_mech1_ckin = p_.calculated_mechanism1(
         tag, stoich, "dat", path=p_.chemkin(root_path)
     )
-    calc_mech2_ckin = p_.calculated_mechanism2(
-        tag, stoich, "dat", path=p_.chemkin(root_path)
-    )
     print(f" - Calculated: {calc_mech1_ckin}")
     automech.io.chemkin.write.mechanism(calc_mech1, calc_mech1_ckin)
-    print(f" - Comparison: {calc_mech2_ckin}")
-    automech.io.chemkin.write.mechanism(calc_mech2, calc_mech2_ckin)
 
     print("Writing mechanisms to Cantera...")
     calc_mech1_yaml = p_.calculated_mechanism1(
         tag, stoich, "yaml", path=p_.cantera(root_path)
     )
-    calc_mech2_yaml = p_.calculated_mechanism2(
-        tag, stoich, "yaml", path=p_.cantera(root_path)
-    )
     print(f" - Calculated: {calc_mech1_yaml}")
     automech.io.chemkin.write.mechanism(calc_mech1, calc_mech1_yaml)
-    print(f" - Comparison: {calc_mech2_yaml}")
-    automech.io.chemkin.write.mechanism(calc_mech2, calc_mech2_yaml)
 
     print("Converting ChemKin mechanism to Cantera YAML...")
     Parser.convert_mech(calc_mech1_ckin, out_name=calc_mech1_yaml)
-    Parser.convert_mech(calc_mech2_ckin, out_name=calc_mech2_yaml)
 
     print("Validating Cantera model...")
     cantera.Solution(calc_mech1_yaml)  # type: ignore
-    cantera.Solution(calc_mech2_yaml)  # type: ignore
-    return mech, comp_mech
+    return mech
 
 
 def prepare_simulation(tag: str, stoichs: Sequence[str], root_path: str | Path) -> None:

@@ -63,6 +63,10 @@ class ReactionRateExtra(Model):
     """Reaction table with rate."""
 
     rate_data: polars.Struct
+    branch_frac: polars.Struct
+    rev_rate: polars.Struct
+    rev_rate_data: polars.Struct
+    rev_branch_frac: polars.Struct
     well_skipping: bool
     cleared: bool
     partially_cleared: bool

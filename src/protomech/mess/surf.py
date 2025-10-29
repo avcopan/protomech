@@ -1853,7 +1853,9 @@ def fit_rates(
     return surf
 
 
-def match_rate_directions(surf: Surface, mech: Mechanism) -> Surface:
+def forward_rate_keys(
+    surf: Surface, mech: Mechanism, *, direct: bool = True, well_skipping: bool = True
+) -> list[tuple[int, int]]:
     """Picks a direction and drops the reverse rate based on an existing mechanism.
 
     :param surf: Surface
@@ -1862,11 +1864,8 @@ def match_rate_directions(surf: Surface, mech: Mechanism) -> Surface:
     """
     # Generate a dictionary mapping edge keys to rate keys
     rate_key_pair_dct = defaultdict(list)
-    for rate_key in surf.rates.keys():
+    for rate_key in rate_keys(surf, direct=True, well_skipping=well_skipping):
         rate_key_pair_dct[frozenset(rate_key)].append(rate_key)
-    rate_key_pair_dct: dict[frozenset[int], list[tuple[int, int]]] = {
-        k: sorted(v) for k, v in rate_key_pair_dct.items()
-    }
 
     # Give a warning if there are unpaired rate keys
     unpaired_rate_key = next(
@@ -1883,7 +1882,7 @@ def match_rate_directions(surf: Surface, mech: Mechanism) -> Surface:
     node_dct = {n.key: n for n in surf.nodes}
 
     # 1. Loop over edges to identify the directions of direct reactions
-    rate_keys_ = []
+    forw_rate_keys = []
     direct_keys = edge_keys(surf)
     for direct_key in direct_keys:
         found = False
@@ -1894,7 +1893,7 @@ def match_rate_directions(surf: Surface, mech: Mechanism) -> Surface:
             rxn = (rct, prd)
             rxn = next((r for r in rxns if r == rxn), None)
             if rxn:
-                rate_keys_.append(rate_key)
+                forw_rate_keys.append(rate_key)
                 found = True
                 break
 
@@ -1902,12 +1901,15 @@ def match_rate_directions(surf: Surface, mech: Mechanism) -> Surface:
             msg = f"No matching reaction found for edge {direct_key}"
             raise ValueError(msg)
 
+    if not well_skipping:
+        return forw_rate_keys
+
     # 2. Choose well skipping directions based to maximize a "score", defined as
     #    (nr != 0, np != 0, nr + np, nr, np), where nr is the number of time the
     #    first node appears as a reactant and np is the number of time the
     #    second node appears as a product in the mechanism
     skip_keys = set(rate_key_pair_dct.keys()) - set(direct_keys)
-    rct_keys, prd_keys = zip(*rate_keys_, strict=True)
+    rct_keys, prd_keys = zip(*forw_rate_keys, strict=True)
 
     def score(rate_key: tuple[int, int]) -> tuple[bool, bool, int, int, int]:
         key1, key2 = rate_key
@@ -1915,14 +1917,16 @@ def match_rate_directions(surf: Surface, mech: Mechanism) -> Surface:
         np = prd_keys.count(key2)
         return (nr != 0, np != 0, nr + np, nr, np)
 
+    forw_skip_rate_keys = []
     for skip_key in skip_keys:
-        rate_key_pair = rate_key_pair_dct[skip_key]
+        rate_key_pair = sorted(rate_key_pair_dct[skip_key])
         rate_key = max(rate_key_pair, key=score)
-        rate_keys_.append(rate_key)
+        forw_skip_rate_keys.append(rate_key)
 
-    rates = {k: v for k, v in surf.rates.items() if k in rate_keys_}
-    rate_fits = {k: v for k, v in surf.rate_fits.items() if k in rate_keys_}
-    return surf.model_copy(deep=True, update={"rates": rates, "rate_fits": rate_fits})
+    if not direct:
+        return forw_skip_rate_keys
+
+    return [*forw_rate_keys, *forw_skip_rate_keys]
 
 
 def update_mechanism_rates(
@@ -1940,24 +1944,39 @@ def update_mechanism_rates(
     :param surf_data: Alternative surface to pull un-fitted rate data from
     :return: Mechanism
     """
-    mech = update_mechanism_direct_rates(
-        surf, mech, A_fill=A_fill, surf_data=surf_data, drop_orig=drop_orig
+    spc_df = mech.species
+    rxn_df = mech.reactions
+
+    # Add direct rates
+    rate_keys = forward_rate_keys(surf, mech, direct=True, well_skipping=False)
+    rate_df = reaction_rates_dataframe(
+        surf, rate_keys, A_fill=A_fill, surf_data=surf_data
     )
-    mech = add_mechanism_well_skipping_rates(
-        surf, mech, A_fill=A_fill, surf_data=surf_data, drop_orig=drop_orig
-    )
-    return mech
+    rxn_df = automech.reaction.left_update(rxn_df, rate_df, drop_orig=drop_orig)
+
+    # Add well-skipping rates
+    skip_rate_keys = forward_rate_keys(surf, mech, direct=False, well_skipping=True)
+    if skip_rate_keys:
+        skip_rate_df = reaction_rates_dataframe(
+            surf, skip_rate_keys, A_fill=A_fill, surf_data=surf_data
+        )
+        skip_rate_df = automech.reaction.bootstrap(
+            skip_rate_df.to_dict(as_series=False),  # type: ignore
+            spc_df=spc_df,
+        )
+        rxn_df = pl.concat([rxn_df, skip_rate_df], how="diagonal_relaxed")
+
+    return mech.model_copy(update={"species": spc_df, "reactions": rxn_df})
 
 
-def update_mechanism_direct_rates(
+def reaction_rates_dataframe(
     surf: Surface,
-    mech: Mechanism,
+    rate_keys: Sequence[tuple[int, int]],
     *,
     A_fill: float,
     surf_data: Surface | None = None,
-    drop_orig: bool = False,
-) -> Mechanism:
-    """Update direct rates in a mechanism.
+) -> pl.DataFrame:
+    """Build reaction rates dataframe.
 
     :param surf: Surface
     :param mech: Mechanism
@@ -1967,14 +1986,19 @@ def update_mechanism_direct_rates(
     surf_data_ = surf if surf_data is None else surf_data
 
     rate_data = []
-    for rate_key in rate_keys(surf, direct=True, well_skipping=False):
+    for rate_key in rate_keys:
         key1, key2 = rate_key
+        rev_rate_key = (key2, key1)
         node1 = node_object(surf, key1)
         node2 = node_object(surf, key2)
+        # Forward rate
         rate = surf_data_.rates[rate_key]
         rate_fit = surf.rate_fits[rate_key]
-        cleared = rate_fit.is_cleared(A_fill=A_fill)
-        partially_cleared = rate_fit.is_partially_cleared(A_fill=A_fill)
+        branch_frac = surf.branching_fractions[rate_key]
+        # Reverse rate
+        rev_rate = surf_data_.rates[rev_rate_key]
+        rev_rate_fit = surf.rate_fits[rev_rate_key]
+        rev_branch_frac = surf.branching_fractions[rev_rate_key]
         rate_data.append(
             {
                 Reaction.reactants: node1.names_list,  # type: ignore
@@ -1982,64 +2006,19 @@ def update_mechanism_direct_rates(
                 ReactionRate.reversible: True,
                 ReactionRate.rate: rate_fit.model_dump(),
                 ReactionRateExtra.rate_data: rate.model_dump(),
+                ReactionRateExtra.branch_frac: branch_frac.model_dump(),
+                ReactionRateExtra.rev_rate: rev_rate_fit.model_dump(),
+                ReactionRateExtra.rev_rate_data: rev_rate.model_dump(),
+                ReactionRateExtra.rev_branch_frac: rev_branch_frac.model_dump(),
                 ReactionRateExtra.well_skipping: False,
-                ReactionRateExtra.cleared: cleared,
-                ReactionRateExtra.partially_cleared: partially_cleared,
+                ReactionRateExtra.cleared: rate_fit.is_cleared(A_fill=A_fill),
+                ReactionRateExtra.partially_cleared: rate_fit.is_partially_cleared(
+                    A_fill=A_fill
+                ),
             }
         )
 
-    rate_df = pl.DataFrame(rate_data, infer_schema_length=None)
-
-    mech = mech.model_copy()
-    mech.reactions = automech.reaction.left_update(
-        mech.reactions, rate_df, drop_orig=drop_orig
-    )
-    return mech
-
-
-def add_mechanism_well_skipping_rates(
-    surf: Surface,
-    mech: Mechanism,
-    *,
-    A_fill: float,
-    surf_data: Surface | None = None,
-    drop_orig: bool = False,
-) -> Mechanism:
-    """Add well-skipping rates to a mechanism.
-
-    :param surf: Surface
-    :param mech: Mechanism
-    :param surf_data: Alternative surface to pull un-fitted rate data from
-    :return: Mechanism
-    """
-    surf_data_ = surf if surf_data is None else surf_data
-
-    rate_data = defaultdict(list)
-    for rate_key in rate_keys(surf, direct=False, well_skipping=True):
-        key1, key2 = rate_key
-        node1 = node_object(surf, key1)
-        node2 = node_object(surf, key2)
-        rate = surf_data_.rates[rate_key]
-        rate_fit = surf.rate_fits[rate_key]
-        cleared = rate_fit.is_cleared(A_fill=A_fill)
-        partially_cleared = rate_fit.is_partially_cleared(A_fill=A_fill)
-        rate_data[Reaction.reactants].append(node1.names_list)
-        rate_data[Reaction.products].append(node2.names_list)
-        rate_data[ReactionRate.reversible].append(True)
-        rate_data[ReactionRate.rate].append(rate_fit.model_dump())
-        rate_data[ReactionRateExtra.rate_data].append(rate.model_dump())
-        rate_data[ReactionRateExtra.well_skipping].append(True)
-        rate_data[ReactionRateExtra.cleared].append(cleared)
-        rate_data[ReactionRateExtra.partially_cleared].append(partially_cleared)
-
-    if not rate_data:
-        return mech
-
-    rate_df = automech.reaction.bootstrap(dict(rate_data), spc_df=mech.species)
-
-    mech = mech.model_copy()
-    mech.reactions = pl.concat([mech.reactions, rate_df], how="diagonal_relaxed")
-    return mech
+    return pl.DataFrame(rate_data, infer_schema_length=None)
 
 
 def mess_input(surf: Surface) -> str:
