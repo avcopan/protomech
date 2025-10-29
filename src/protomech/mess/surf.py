@@ -1948,17 +1948,19 @@ def update_mechanism_rates(
     rxn_df = mech.reactions
 
     # Add direct rates
-    rate_keys = forward_rate_keys(surf, mech, direct=True, well_skipping=False)
+    forw_rate_keys = forward_rate_keys(surf, mech, direct=True, well_skipping=False)
     rate_df = reaction_rates_dataframe(
-        surf, rate_keys, A_fill=A_fill, surf_data=surf_data
+        surf, forw_rate_keys, A_fill=A_fill, surf_data=surf_data
     )
     rxn_df = automech.reaction.left_update(rxn_df, rate_df, drop_orig=drop_orig)
 
     # Add well-skipping rates
-    skip_rate_keys = forward_rate_keys(surf, mech, direct=False, well_skipping=True)
-    if skip_rate_keys:
+    forw_skip_rate_keys = forward_rate_keys(
+        surf, mech, direct=False, well_skipping=True
+    )
+    if forw_skip_rate_keys:
         skip_rate_df = reaction_rates_dataframe(
-            surf, skip_rate_keys, A_fill=A_fill, surf_data=surf_data
+            surf, forw_skip_rate_keys, A_fill=A_fill, surf_data=surf_data
         )
         skip_rate_df = automech.reaction.bootstrap(
             skip_rate_df.to_dict(as_series=False),  # type: ignore

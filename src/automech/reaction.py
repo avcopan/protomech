@@ -2,7 +2,7 @@
 
 import functools
 import itertools
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from typing import Annotated
 
 import autochem as ac
@@ -421,6 +421,8 @@ def with_rate_objects(
     rxn_df: polars.DataFrame,
     col: str,
     fill: bool = False,
+    rate_col: str = ReactionRate.rate,  # type: ignore
+    reverse: bool = False,
 ) -> polars.DataFrame:
     """Add a column of reaction rate objects.
 
@@ -433,6 +435,12 @@ def with_rate_objects(
         rxn_df = with_rates(rxn_df)
 
     cols = [
+        Reaction.reactants if not reverse else Reaction.products,
+        Reaction.products if not reverse else Reaction.reactants,
+        ReactionRate.reversible,
+        rate_col,
+    ]
+    fields = [
         Reaction.reactants,
         Reaction.products,
         ReactionRate.reversible,
@@ -440,6 +448,7 @@ def with_rate_objects(
     ]
     return rxn_df.with_columns(
         polars.struct(cols)
+        .struct.rename_fields(fields)
         .map_elements(ac.rate.Reaction.model_validate, return_dtype=polars.Object)
         .alias(col)
     )
@@ -762,7 +771,8 @@ def reaction_match_expression(
 
 
 def reagents_match_expression(
-    rgts: list[str], col: str = Reaction.reactants
+    rgts: Collection[str],
+    col: str = Reaction.reactants,  # type: ignore
 ) -> polars.Expr:
     """Expression for matching a list of reagents.
 

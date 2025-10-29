@@ -6,6 +6,7 @@ from ._mech import (
     are_equivalent,
     combine_all,
     display,
+    display_branching_fractions,
     display_reactions,
     display_species,
     drop_duplicate_reactions,
@@ -120,6 +121,7 @@ __all__ = [
     "display",
     "display_species",
     "display_reactions",
+    "display_branching_fractions",
     # modules
     "io",
     "util",

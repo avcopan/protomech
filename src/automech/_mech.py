@@ -2,6 +2,7 @@
 
 import functools
 import itertools
+import operator
 import textwrap
 import warnings
 from collections.abc import Callable, Collection, Mapping, Sequence
@@ -22,6 +23,7 @@ from .reaction import (
     ReactionDataFrame_,
     ReactionMerged,
     ReactionRate,
+    ReactionRateExtra,
     ReactionSorted,
     ReactionStereo,
 )
@@ -1687,6 +1689,75 @@ def display_reactions(
     # Display requested reactions
     cols = [obj_col, *comp_cols, *rct_cols, *prd_cols]
     df_.map_(rxn_df, cols, None, _display_reaction)
+
+
+def display_branching_fractions(
+    mech: Mechanism,
+    *,
+    T_range: tuple[float, float] = (400, 1250),
+    P: float = 1,
+    reactants_list: Sequence[Sequence[str]] | None = None,
+) -> None:
+    """Display reaction branching fractions.
+
+    :param mech: Mechanism
+    :param T_range: Temperature range
+    :param P: Presure
+    :param reactants_list: Reactants
+    """
+    col_forw = c_.temp()
+    col_back = c_.temp()
+    rxn_df = mech.reactions
+    rxn_df = reaction.with_rate_objects(
+        rxn_df,
+        col_forw,
+        rate_col=ReactionRateExtra.branch_frac,  # type: ignore
+        reverse=False,
+    )
+    rxn_df = reaction.with_rate_objects(
+        rxn_df,
+        col_back,
+        rate_col=ReactionRateExtra.rev_branch_frac,  # type: ignore
+        reverse=True,
+    )
+
+    all_rcts_lst = mit.unique_everseen(rxn_df.get_column(Reaction.reactants).to_list())  # type: ignore
+    rcts_lst = all_rcts_lst if reactants_list is None else reactants_list
+
+    for rcts in rcts_lst:
+        print(rcts)
+        rct_match = reaction.reagents_match_expression(
+            rcts,
+            col=Reaction.reactants,  # type: ignore
+        )
+        prd_match = reaction.reagents_match_expression(
+            rcts,
+            col=Reaction.products,  # type: ignore
+        )
+
+        forw_rate_df = rxn_df.filter(rct_match)
+        back_rate_df = rxn_df.filter(prd_match)
+
+        branch_fracs = []
+        branch_fracs.extend(forw_rate_df.get_column(col_forw).to_list())
+        branch_fracs.extend(back_rate_df.get_column(col_back).to_list())
+
+        objs = [r.rate for r in branch_fracs]
+        labels = ["+".join(r.products) for r in branch_fracs]
+
+        objs.append(functools.reduce(operator.add, objs))
+        labels.append("total")
+
+        chart = ac.rate.data.display(
+            objs,
+            T_range=T_range,
+            P=P,
+            label=labels,
+            plot_type="simple",
+            y_label="𝑓",
+            y_unit="",
+        )
+        ipy_display(chart)
 
 
 # Helpers
