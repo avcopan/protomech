@@ -93,32 +93,18 @@ def comparison_mechanism(
     return handle_extension_and_path(f"{tag}_comp", ext=ext, path=path)
 
 
-def calculated_mechanism1(
+def calculated_mechanism(
     tag: str, stoich: str, ext: str | None = None, path: str | Path | None = None
 ) -> str | Path:
     """Determine the name of the calculated mechanism."""
-    return handle_extension_and_path(f"{tag}_{stoich}_calc1", ext=ext, path=path)
+    return handle_extension_and_path(f"{tag}_{stoich}_calc", ext=ext, path=path)
 
 
-def calculated_mechanism2(
-    tag: str, stoich: str, ext: str | None = None, path: str | Path | None = None
-) -> str | Path:
-    """Determine the name of the calculated mechanism."""
-    return handle_extension_and_path(f"{tag}_{stoich}_calc2", ext=ext, path=path)
-
-
-def full_calculated_mechanism1(
+def full_calculated_mechanism(
     tag: str, ext: str | None = None, path: str | Path | None = None
 ) -> str | Path:
     """Determine the name of the full (merged) calculated mechanism."""
-    return handle_extension_and_path(f"full_{tag}_calc1", ext=ext, path=path)
-
-
-def full_calculated_mechanism2(
-    tag: str, ext: str | None = None, path: str | Path | None = None
-) -> str | Path:
-    """Determine the name of the full (merged) calculated mechanism."""
-    return handle_extension_and_path(f"full_{tag}_calc2", ext=ext, path=path)
+    return handle_extension_and_path(f"full_{tag}_calc", ext=ext, path=path)
 
 
 def full_control_mechanism(

@@ -461,36 +461,36 @@ def postprocess_rate_data(
 
     print("Adding rate data...")
     print(" - Adding direct rate data...")
-    calc_mech1 = mess.surf.update_mechanism_rates(
+    calc_mech = mess.surf.update_mechanism_rates(
         surf, mech, A_fill=A_fill, surf_data=surf0, drop_orig=True
     )
 
     print("Writing mechanisms to JSON...")
-    calc_mech1_json = p_.calculated_mechanism1(
+    calc_mech_json = p_.calculated_mechanism(
         tag, stoich, "json", path=p_.data(root_path)
     )
-    print(f" - Calculated: {calc_mech1_json}")
-    automech.io.write(calc_mech1, calc_mech1_json)
+    print(f" - Calculated: {calc_mech_json}")
+    automech.io.write(calc_mech, calc_mech_json)
 
     print("Writing mechanisms to Chemkin...")
-    calc_mech1_ckin = p_.calculated_mechanism1(
+    calc_mech_ckin = p_.calculated_mechanism(
         tag, stoich, "dat", path=p_.chemkin(root_path)
     )
-    print(f" - Calculated: {calc_mech1_ckin}")
-    automech.io.chemkin.write.mechanism(calc_mech1, calc_mech1_ckin)
+    print(f" - Calculated: {calc_mech_ckin}")
+    automech.io.chemkin.write.mechanism(calc_mech, calc_mech_ckin)
 
     print("Writing mechanisms to Cantera...")
-    calc_mech1_yaml = p_.calculated_mechanism1(
+    calc_mech_yaml = p_.calculated_mechanism(
         tag, stoich, "yaml", path=p_.cantera(root_path)
     )
-    print(f" - Calculated: {calc_mech1_yaml}")
-    automech.io.chemkin.write.mechanism(calc_mech1, calc_mech1_yaml)
+    print(f" - Calculated: {calc_mech_yaml}")
+    automech.io.chemkin.write.mechanism(calc_mech, calc_mech_yaml)
 
     print("Converting ChemKin mechanism to Cantera YAML...")
-    Parser.convert_mech(calc_mech1_ckin, out_name=calc_mech1_yaml)
+    Parser.convert_mech(calc_mech_ckin, out_name=calc_mech_yaml)
 
     print("Validating Cantera model...")
-    cantera.Solution(calc_mech1_yaml)  # type: ignore
+    cantera.Solution(calc_mech_yaml)  # type: ignore
     return mech
 
 
@@ -502,78 +502,53 @@ def prepare_simulation(tag: str, stoichs: Sequence[str], root_path: str | Path) 
     """
     print("Reading mechanisms...")
     par_mech_json = p_.parent_mechanism("json", path=p_.data(root_path))
-    mech1_jsons = [
-        p_.calculated_mechanism1(tag, s, "json", path=p_.data(root_path))
-        for s in stoichs
-    ]
-    mech2_jsons = [
-        p_.calculated_mechanism2(tag, s, "json", path=p_.data(root_path))
+    mech_jsons = [
+        p_.calculated_mechanism(tag, s, "json", path=p_.data(root_path))
         for s in stoichs
     ]
     print(f" - Parent: {par_mech_json}")
     par_mech = automech.io.read(par_mech_json)
-    print(f" - Calculated: {mech1_jsons}")
-    mech1s = list(map(automech.io.read, mech1_jsons))
-    print(f" - Comparison: {mech2_jsons}")
-    mech2s = list(map(automech.io.read, mech2_jsons))
-    mech1 = automech.combine_all(mech1s)
-    mech2 = automech.combine_all(mech2s)
+    print(f" - Calculated: {mech_jsons}")
+    mechs = list(map(automech.io.read, mech_jsons))
+    mech = automech.combine_all(mechs)
 
     print("Expanding and updating parent...")
-    full_control_mech = automech.expand_parent_stereo(par_mech, mech1)
-    full_calc1_mech = automech.update(full_control_mech, mech1)
-    full_calc2_mech = automech.update(full_control_mech, mech2)
+    full_control_mech = automech.expand_parent_stereo(par_mech, mech)
+    full_calc_mech = automech.update(full_control_mech, mech)
 
     print("Writing mechanism to JSON...")
     full_control_json = p_.full_control_mechanism(tag, "json", path=p_.data(root_path))
-    full_calc1_json = p_.full_calculated_mechanism1(
-        tag, "json", path=p_.data(root_path)
-    )
-    full_calc2_json = p_.full_calculated_mechanism2(
-        tag, "json", path=p_.data(root_path)
-    )
+    full_calc_json = p_.full_calculated_mechanism(tag, "json", path=p_.data(root_path))
     print(f" - Control: {full_control_json}")
     automech.io.write(full_control_mech, full_control_json)
-    print(f" - Calculated: {full_calc1_json}")
-    automech.io.write(full_calc1_mech, full_calc1_json)
-    print(f" - Comparison: {full_calc2_json}")
-    automech.io.write(full_calc2_mech, full_calc2_json)
+    print(f" - Calculated: {full_calc_json}")
+    automech.io.write(full_calc_mech, full_calc_json)
 
     print("Writing mechanism to Chemkin...")
     full_control_ckin = p_.full_control_mechanism(
         tag, "dat", path=p_.chemkin(root_path)
     )
-    full_calc1_ckin = p_.full_calculated_mechanism1(
-        tag, "dat", path=p_.chemkin(root_path)
-    )
-    full_calc2_ckin = p_.full_calculated_mechanism2(
+    full_calc_ckin = p_.full_calculated_mechanism(
         tag, "dat", path=p_.chemkin(root_path)
     )
     print(f" - Control: {full_control_ckin}")
     automech.io.chemkin.write.mechanism(full_control_mech, full_control_ckin)
-    print(f" - Calculated: {full_calc1_ckin}")
-    automech.io.chemkin.write.mechanism(full_calc1_mech, full_calc1_ckin)
-    print(f" - Comparison: {full_calc2_ckin}")
-    automech.io.chemkin.write.mechanism(full_calc2_mech, full_calc2_ckin)
+    print(f" - Calculated: {full_calc_ckin}")
+    automech.io.chemkin.write.mechanism(full_calc_mech, full_calc_ckin)
 
     print("Converting ChemKin mechanism to Cantera YAML...")
     full_control_yaml = p_.full_control_mechanism(
         tag, "yaml", path=p_.cantera(root_path)
     )
-    full_calc1_yaml = p_.full_calculated_mechanism1(
-        tag, "yaml", path=p_.cantera(root_path)
-    )
-    full_calc2_yaml = p_.full_calculated_mechanism2(
+    full_calc_yaml = p_.full_calculated_mechanism(
         tag, "yaml", path=p_.cantera(root_path)
     )
     Parser.convert_mech(full_control_ckin, out_name=full_control_yaml)
-    Parser.convert_mech(full_calc1_ckin, out_name=full_calc1_yaml)
-    Parser.convert_mech(full_calc2_ckin, out_name=full_calc2_yaml)
+    Parser.convert_mech(full_calc_ckin, out_name=full_calc_yaml)
 
     print("Validating Cantera model...")
     cantera.Solution(full_control_yaml)  # type: ignore
-    cantera.Solution(full_calc1_yaml)  # type: ignore
-    cantera.Solution(full_calc2_yaml)  # type: ignore
+    cantera.Solution(full_calc_yaml)  # type: ignore
 
 
 def plot_rates(tag: str, root_path: str | Path) -> None:
