@@ -1707,34 +1707,54 @@ def display_branching_fractions(
     """
     from rdkit.Chem import Draw
 
-    col_forw = c_.temp()
-    col_back = c_.temp()
+    col_frac_forw = c_.temp()
+    col_frac_back = c_.temp()
+    col_frac = c_.temp()
+    col_rate_forw = c_.temp()
+    col_rate_back = c_.temp()
     col_rate = c_.temp()
+    col_fit_forw = c_.temp()
+    col_fit_back = c_.temp()
+    col_fit = c_.temp()
+    col_rate_dct = {
+        col_frac_forw: ReactionRateExtra.branch_frac,
+        col_frac_back: ReactionRateExtra.rev_branch_frac,
+        col_rate_forw: ReactionRateExtra.rate_data,
+        col_rate_back: ReactionRateExtra.rev_rate_data,
+        col_fit_forw: ReactionRate.rate,
+        col_fit_back: ReactionRateExtra.rev_rate,
+    }
     col_prod = c_.temp()
     rxn_df = mech.reactions
-    rxn_df = reaction.with_rate_objects(
-        rxn_df,
-        col_forw,
-        rate_col=ReactionRateExtra.branch_frac,  # type: ignore
-        reverse=False,
-    )
-    rxn_df = reaction.with_rate_objects(
-        rxn_df,
-        col_back,
-        rate_col=ReactionRateExtra.rev_branch_frac,  # type: ignore
-        reverse=True,
-    )
+
+    for col_out, col_in in col_rate_dct.items():
+        rxn_df = reaction.with_rate_objects(
+            rxn_df,
+            col_out,
+            rate_col=col_in,  # type: ignore
+            reverse=False,
+        )
 
     all_rcts_lst = mit.unique_everseen(rxn_df.get_column(Reaction.reactants).to_list())  # type: ignore
     rcts_lst = all_rcts_lst if reactants_list is None else reactants_list
 
-    col_forw_dct = {col_forw: col_rate, Reaction.products: col_prod}  # type: ignore
-    col_back_dct = {col_back: col_rate, Reaction.reactants: col_prod}  # type: ignore
+    col_forw_dct = {
+        col_frac_forw: col_frac,
+        col_rate_forw: col_rate,
+        col_fit_forw: col_fit,
+        Reaction.products: col_prod,  # type: ignore
+    }
+    col_back_dct = {
+        col_frac_back: col_frac,
+        col_rate_back: col_rate,
+        col_fit_back: col_fit,
+        Reaction.reactants: col_prod,  # type: ignore
+    }
     chi_dct = df_.lookup_dict(mech.species, Species.name, Species.amchi)
     well_skipping = polars.col(ReactionRateExtra.well_skipping)
 
     for rcts in rcts_lst:
-        # Branching fraction
+        # Gather data
         rct_match = reaction.reagents_match_expression(
             rcts,
             col=Reaction.reactants,  # type: ignore
@@ -1748,25 +1768,6 @@ def display_branching_fractions(
         back_rate_df = rxn_df.filter(prd_match).rename(col_back_dct)
         rate_df = polars.concat([forw_rate_df, back_rate_df], how="diagonal_relaxed")
         rate_df = rate_df.sort(well_skipping)
-
-        branch_fracs = rate_df.get_column(col_rate).to_list()
-
-        objs = [r.rate for r in branch_fracs]
-        labels = ["+".join(r.products) for r in branch_fracs]
-
-        objs.insert(0, functools.reduce(operator.add, objs))
-        labels.insert(0, "total")
-
-        chart = ac.rate.data.display(
-            objs,
-            T_range=T_range,
-            P=P,
-            label=labels,
-            plot_type="simple",
-            y_label="𝑓",
-            y_unit="",
-        )
-        ipy_display(chart)
 
         # Reactants
         name = "+".join(rcts)
@@ -1793,6 +1794,34 @@ def display_branching_fractions(
             skip_mols = list(map(automol.amchi.rdkit_molecule, skip_chis))
             print("Well-skipping products:")
             ipy_display(Draw.MolsToImage(skip_mols, legends=skip_names))
+
+        # Branching fraction
+        prods = rate_df.get_column(col_prod).to_list()
+        labels = list(map("+".join, prods))
+
+        # Branching fractions
+        fracs = [r.rate for r in rate_df.get_column(col_frac).to_list()]
+        fracs.insert(0, functools.reduce(operator.add, fracs))
+        frac_labels = labels.copy()
+        frac_labels.insert(0, "total")
+        frac_chart = ac.rate.data.display(
+            fracs,
+            T_range=T_range,
+            P=P,
+            label=frac_labels,
+            plot_type="simple",
+            y_label="𝑓",
+            y_unit="",
+        )
+        ipy_display(frac_chart)
+
+        # Rates and fits
+        rates = [r.rate for r in rate_df.get_column(col_rate).to_list()]
+        fits = [r.rate for r in rate_df.get_column(col_fit).to_list()]
+        objs = [*rates, *fits]
+        obj_labels = [*labels, *labels]
+        rate_chart = ac.rate.data.display(objs, T_range=T_range, P=P, label=obj_labels)
+        ipy_display(rate_chart)
 
 
 # Helpers
