@@ -2,7 +2,10 @@
 
 import functools
 import itertools
+import json
+from collections.abc import Callable, Sequence
 from pathlib import Path
+from typing import Any
 
 import automol
 import polars
@@ -18,7 +21,8 @@ from ...util import c_, pandera_
 from .read import KeyWord
 
 ENERGY_PER_SUBSTANCE = unit_.string(UNITS.energy_per_substance).upper().replace(" ", "")
-SUBTANCE = unit_.string(UNITS.substance).upper().replace(" ", "")
+SUBSTANCE = unit_.string(UNITS.substance).upper().replace(" ", "")
+REACTION_BLOCK_HEADER = f"   {ENERGY_PER_SUBSTANCE}   {SUBSTANCE}"
 
 
 def mechanism(
@@ -130,6 +134,103 @@ def thermo_block(mech: Mechanism) -> str:
     return block(KeyWord.THERM, therm_strs, header=header)
 
 
+def reactions_block_new(
+    mech: Mechanism,
+    frame: bool = True,
+    fill_rates: bool = False,
+    data_col_groups: Sequence[Sequence[str]] = (),
+    sort_data: bool = False,
+    comment_sep: str = "!",
+    encoder: Callable[[Any], str] = json.dumps,
+) -> str:
+    """Write the reactions block to a string.
+
+    :param mech: A mechanism
+    :param frame: Whether to frame the block with its header and footer
+    :param fill_rates: Whether to fill missing rates with dummy values
+    :param col_groups: Column groups to sort by
+    :param comment_sep: Comment separator
+    :return: The reactions block string
+    """
+    rxn_df = mech.reactions
+
+    # Quit if no reactions
+    if rxn_df.is_empty():
+        return block(KeyWord.REACTIONS, "", header=REACTION_BLOCK_HEADER, frame=frame)
+
+    # Identify duplicates
+    dup_col = c_.temp()
+    rxn_df = reaction.with_duplicate_column(rxn_df, dup_col)
+
+    # Add reaction rate objects
+    obj_col = c_.temp()
+    rxn_df = reaction.with_rate_objects(rxn_df, obj_col, fill=fill_rates)
+
+    # Add reaction equations to determine apppropriate width
+    eq_col = c_.temp()
+    rxn_df = rxn_df.with_columns(
+        polars.col(obj_col)
+        .map_elements(rate.chemkin_equation, return_dtype=polars.String)
+        .alias(eq_col)
+    )
+    eq_width = rxn_df.get_column(eq_col).str.len_chars().max()
+    assert isinstance(eq_width, int), f"eq_width = {eq_width}"
+    eq_width += 8
+
+    # Add Chemkin rate strings
+    ck_col = c_.temp()
+    chemkin_string_ = functools.partial(rate.chemkin_string, eq_width=eq_width)
+    rxn_df = rxn_df.with_columns(
+        polars.col(obj_col)
+        .map_elements(chemkin_string_, return_dtype=polars.String)
+        .alias(ck_col)
+    )
+
+    # Add duplicate keywords
+    rxn_df = rxn_df.with_columns(
+        polars.when(dup_col)
+        .then(
+            polars.col(ck_col).map_elements(
+                chemkin.write_with_dup, return_dtype=polars.String
+            )
+        )
+        .otherwise(polars.col(ck_col))
+    )
+
+    if data_col_groups:
+        # Add comments column
+        comment_col = c_.temp()
+        rxn_df = rxn_df.with_columns(
+            polars.concat_str(
+                [
+                    polars.struct(cols).map_elements(
+                        encoder, return_dtype=polars.String
+                    )
+                    for cols in data_col_groups
+                ],
+                separator="\n",
+            ).alias(comment_col)
+        )
+
+        # Join comment column with
+        rxn_df = rxn_df.with_columns(
+            polars.concat_arr([ck_col, comment_col])
+            .map_elements(
+                lambda x: text_with_comments(x[0], x[1], sep=comment_sep),
+                return_dtype=polars.String,
+            )
+            .alias(ck_col)
+        )
+
+        # Sort by column values
+        if sort_data:
+            data_col_groups = list(itertools.chain.from_iterable(data_col_groups))
+            rxn_df = rxn_df.sort(data_col_groups, nulls_last=True)
+
+    rxn_strs = rxn_df.get_column(ck_col).to_list()
+    return block(KeyWord.REACTIONS, rxn_strs, header=REACTION_BLOCK_HEADER, frame=frame)
+
+
 def reactions_block(
     mech: Mechanism,
     frame: bool = True,
@@ -145,7 +246,7 @@ def reactions_block(
     :return: The reactions block string
     """
     # Generate the header
-    header = f"   {ENERGY_PER_SUBSTANCE}   {SUBTANCE}"
+    header = f"   {ENERGY_PER_SUBSTANCE}   {SUBSTANCE}"
 
     rxn_df = mech.reactions
 
