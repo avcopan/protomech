@@ -1692,8 +1692,8 @@ def absorb_fake_nodes(surf: Surface) -> Surface:
 
 def bad_pressure_independence_rate_keys(
     surf: Surface,
-    T_vals: Sequence[float],
     *,
+    T_drop: Sequence[float] = (),
     P_dep_tol: float = 0.2,
     direct: bool = True,
     well_skipping: bool = True,
@@ -1710,13 +1710,11 @@ def bad_pressure_independence_rate_keys(
         surf, direct=direct, well_skipping=well_skipping, empty=empty
     )
     for rate_key in rate_keys_:
-        rate = surf.rates[rate_key]
+        rate = surf.rates[rate_key].drop_temperatures(T_drop)
         is_partially_unfittable = not array.float_equal(
             rate.P, rate.fittable_pressures()
         )
-        is_pressure_independent = not rate.is_pressure_dependent(
-            T=T_vals, tol=P_dep_tol
-        )
+        is_pressure_independent = not rate.is_pressure_dependent(tol=P_dep_tol)
         if is_partially_unfittable and is_pressure_independent:
             bad_rate_keys.append(rate_key)
     return bad_rate_keys
@@ -1745,9 +1743,8 @@ def unfittable_rate_keys(
 
 def irrelevant_rate_keys(
     surf: Surface,
-    T: Sequence[float],
-    P: Sequence[float],
     *,
+    T_drop: Sequence[float] = (),
     direct: bool = True,
     well_skipping: bool = True,
     min_branch_frac: float = 0.01,
@@ -1764,8 +1761,8 @@ def irrelevant_rate_keys(
     edge_keys_ = edge_keys(surf)
     irrel_keys = []
     for rate_key in rate_keys(surf, direct=direct, well_skipping=well_skipping):
-        branch_frac = surf.branching_fractions[rate_key]
-        max_branch_frac = np.nanmax(np.nan_to_num(branch_frac(T=T, P=P), nan=0.0))
+        branch_frac = surf.branching_fractions[rate_key].drop_temperatures(T_drop)
+        max_branch_frac = np.nanmax(np.nan_to_num(branch_frac.k_data, nan=0.0))
         is_irrelevant = max_branch_frac <= min_branch_frac
         is_direct = frozenset(rate_key) in edge_keys_
         is_included = direct if is_direct else well_skipping
@@ -1780,9 +1777,8 @@ def irrelevant_rate_keys(
 
 def irrelevant_rate_pressures(
     surf: Surface,
-    T: Sequence[float],
-    P: Sequence[float],
     *,
+    T_drop: Sequence[float] = (),
     min_branch_frac: float = 0.01,
 ) -> dict[tuple[int, int], list[float]]:
     """Identify pressures at which rates are irrelevant.
@@ -1794,11 +1790,9 @@ def irrelevant_rate_pressures(
     surf = update_branching_fractions(surf)
     irrel_pressures = {}
     for rate_key in rate_keys(surf):
-        branch_frac = surf.branching_fractions[rate_key]
-        max_branch_frac = np.nanmax(
-            np.nan_to_num(branch_frac(T=T, P=P), nan=0.0), axis=0
-        )
-        Ps = np.asarray(P)[max_branch_frac <= min_branch_frac].tolist()
+        branch_frac = surf.branching_fractions[rate_key].drop_temperatures(T_drop)
+        max_branch_frac = np.nanmax(np.nan_to_num(branch_frac.k_data, nan=0.0), axis=0)
+        Ps = np.asarray(branch_frac.P)[max_branch_frac <= min_branch_frac].tolist()
         irrel_pressures[rate_key] = Ps
     return irrel_pressures
 
@@ -1813,6 +1807,7 @@ def fit_rates(
     | Literal["raise"]
     | Literal["ignore"] = "warn",
     bad_fit_fill_pressures_dct: dict[tuple[int, int], list[float]] | None = None,
+    validate: bool = True,
 ) -> Surface:
     """Fit rates to Arrhenius or Plog.
 
@@ -1820,12 +1815,16 @@ def fit_rates(
     :param tol: Threshold for determining pressure dependence
     :return: Surface
     """
+    label_dct = node_label_dict(surf)
     bad_fit_fill_pressures_dct = (
         {} if bad_fit_fill_pressures_dct is None else bad_fit_fill_pressures_dct
     )
     surf = surf.model_copy(deep=True)
     surf.rate_fits = {}
     for rate_key, rate in surf.rates.items():
+        rate_labels = list(map(label_dct.get, rate_key))
+        print(f"Fitting {rate_labels}...")
+
         if T_drop:
             rate = rate.drop_temperatures(T_drop)
 
@@ -1839,6 +1838,7 @@ def fit_rates(
                 A_fill=A_fill,
                 bad_fit=bad_fit,
                 bad_fit_fill_pressures=bad_fit_fill_pressures,
+                validate=validate,
                 order=rate.order,
             )
         elif rate.is_empty():
@@ -1847,6 +1847,7 @@ def fit_rates(
                 ks=[],
                 A_fill=A_fill,
                 bad_fit=bad_fit,
+                validate=validate,
                 order=rate.order,
             )
         else:
@@ -1855,6 +1856,7 @@ def fit_rates(
                 ks=rate.high_pressure_values(),
                 A_fill=A_fill,
                 bad_fit=bad_fit,
+                validate=validate,
                 order=rate.order,
             )
         surf.rate_fits[rate_key] = rate_fit

@@ -346,11 +346,10 @@ def postprocess_rate_data(
     *,
     clear_nodes: Sequence[str] = (),
     clear_edges: Sequence[tuple[str, str]] = (),
-    T_vals=(600, 700, 800, 900, 1000, 1100, 1200),
-    P_vals=(0.1, 1, 10, 100),
-    T_drop=(300, 400),
-    A_fill=1e-20,
-) -> Mechanism:
+    T_drop: Sequence[float] = (300, 400),
+    A_fill: float = 1e-20,
+    validate: bool = True,
+) -> tuple[Mechanism, mess.surf.Surface]:
     """Prepare simulation from MESS output.
 
     :param tag: Mechanism tag
@@ -408,7 +407,7 @@ def postprocess_rate_data(
 
     print(" - Removing irrelevant well-skipping rates...")
     irrel_skip_rate_keys = mess.surf.irrelevant_rate_keys(
-        surf, T=T_vals, P=P_vals, direct=False, min_branch_frac=0.01, pairs_only=True
+        surf, T_drop=T_drop, direct=False, min_branch_frac=0.01, pairs_only=True
     )
     surf = mess.surf.remove_well_skipping_rates(surf, irrel_skip_rate_keys)
 
@@ -417,9 +416,9 @@ def postprocess_rate_data(
 
     print(" - Checking for bad pressure-independence well-skipping rates...")
     bad_skip_rate_keys = mess.surf.bad_pressure_independence_rate_keys(
-        surf, T_vals=T_vals, direct=False
+        surf, T_drop=T_drop, direct=False
     )
-    if bad_skip_rate_keys:
+    if validate and bad_skip_rate_keys:
         label_dct = mess.surf.node_label_dict(surf)
         bad_skip_rate_labels = [
             (label_dct[k1], label_dct[k2]) for k1, k2 in bad_skip_rate_keys
@@ -429,13 +428,13 @@ def postprocess_rate_data(
 
     print(" - Checking for non-irrelevant bad pressure-independence direct rates...")
     all_bad_rate_keys = mess.surf.bad_pressure_independence_rate_keys(
-        surf, T_vals=T_vals, well_skipping=False
+        surf, T_drop=T_drop, well_skipping=False
     )
     irrel_rate_keys = mess.surf.irrelevant_rate_keys(
-        surf, T=T_vals, P=P_vals, well_skipping=False, min_branch_frac=0.01
+        surf, T_drop=T_drop, well_skipping=False, min_branch_frac=0.01
     )
     bad_rate_keys = set(all_bad_rate_keys) - set(irrel_rate_keys)
-    if bad_rate_keys:
+    if validate and bad_rate_keys:
         label_dct = mess.surf.node_label_dict(surf)
         bad_rate_labels = [(label_dct[k1], label_dct[k2]) for k1, k2 in bad_rate_keys]
         msg = f"Bad pressure-independent direct rates: {bad_rate_labels}"
@@ -447,7 +446,7 @@ def postprocess_rate_data(
 
     print(" - Determining irrelevant pressures...")
     irrel_pressure_dct = mess.surf.irrelevant_rate_pressures(
-        surf, T=T_vals, P=P_vals, min_branch_frac=0.01
+        surf, T_drop=T_drop, min_branch_frac=0.01
     )
 
     print(" - Fitting rates...")
@@ -457,6 +456,7 @@ def postprocess_rate_data(
         A_fill=A_fill,
         bad_fit="raise",
         bad_fit_fill_pressures_dct=irrel_pressure_dct,
+        validate=validate,
     )
 
     print("Adding rate data...")
@@ -491,7 +491,7 @@ def postprocess_rate_data(
 
     print("Validating Cantera model...")
     cantera.Solution(calc_mech_yaml)  # type: ignore
-    return mech
+    return mech, surf0
 
 
 def prepare_simulation(tag: str, stoichs: Sequence[str], root_path: str | Path) -> None:
