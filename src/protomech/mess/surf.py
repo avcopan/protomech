@@ -1861,7 +1861,7 @@ def fit_rates(
     surf = surf.model_copy(deep=True)
     surf.rate_fits = {}
     for rate_key, rate in surf.rates.items():
-        rate_labels = list(map(label_dct.get, rate_key))
+        rate_labels = tuple(map(label_dct.get, rate_key))
         print(f"Fitting {rate_labels}...")
 
         if T_drop:
