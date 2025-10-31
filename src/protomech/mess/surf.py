@@ -1319,6 +1319,27 @@ def set_mess_header_temperature_list(
     return surf
 
 
+def set_mess_header_pressure_list(
+    surf: Surface, pressures: Sequence[float], *, in_place: bool = False
+) -> Surface:
+    """Set the temperature list in the MESS header.
+
+    :param surf: Surface
+    :param in_place: Whether to modify the surface in place
+    :return: Surface
+    """
+    surf = surf if in_place else surf.model_copy(deep=True)
+    temperature_str = "  ".join(f"{t:.2f}" for t in pressures)
+    line = f"PressureList[atm]                     {temperature_str}"
+    line_regex = re.compile(r"^\s*PressureList\[atm\].*$", re.MULTILINE)
+    mess_header = surf.mess_header
+    if not line_regex.search(mess_header):
+        msg = f"No PressureList[atm] line found in MESS header: {mess_header}"
+        raise ValueError(msg)
+    surf.mess_header = line_regex.sub(line, mess_header)
+    return surf
+
+
 # Create nodes
 def update_instability_product_edge(
     surf: Surface, src_edge_key: Collection[int], edge_key: Collection[int]
