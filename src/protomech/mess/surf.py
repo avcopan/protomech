@@ -1281,7 +1281,7 @@ def correct_fake_well_energies(surf: Surface, *, in_place: bool = False) -> Surf
     return surf
 
 
-def set_mess_header_line(surf: Surface, keyword: str, line: str) -> Surface:
+def set_mess_header_line(surf: Surface, keyword: str, keyword_line: str) -> Surface:
     """Set a particular line in the MESS header.
 
     Assumes the keyword value goes on a single line
@@ -1291,11 +1291,29 @@ def set_mess_header_line(surf: Surface, keyword: str, line: str) -> Surface:
     :param line: Line
     :return: Surface
     """
-    surf = surf.model_copy(deep=True)
-    surf.mess_header = "\n".join(
-        line if keyword in line0 else line0 for line0 in surf.mess_header.splitlines()
+    # Split global keywords from model keywords
+    regex = re.compile(r"(?m)(\n(?=^\s*Model\b))")
+    split = regex.split(surf.mess_header, maxsplit=1)
+    if len(split) != 3:
+        msg = f"Failed to split global from model keywords in Mess header:\n{surf.mess_header}"
+        raise ValueError(msg)
+
+    global_header, _, model_header = split
+
+    # Gather global option lines, dropping the existing keyword line if present
+    global_lines = [line for line in global_header.splitlines() if keyword not in line]
+
+    # Insert new keyword line after the last non-comment line, with a "!" before it
+    insert_idx = 1 + max(
+        idx
+        for idx, line in enumerate(global_lines)
+        if not line.lstrip().startswith("!")
     )
-    return surf
+    global_lines.insert(insert_idx, keyword_line)
+    global_lines.insert(insert_idx, "!")
+
+    mess_header = "\n".join([*global_lines, model_header])
+    return surf.model_copy(update={"mess_header": mess_header})
 
 
 def set_mess_header_temperature_list(
