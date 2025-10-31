@@ -1753,6 +1753,8 @@ def display_branching_fractions(
     chi_dct = df_.lookup_dict(mech.species, Species.name, Species.amchi)
     well_skipping = polars.col(ReactionRateExtra.well_skipping)
 
+    colors = ac.util.plot.LINE_COLOR_CYCLE + ac.util.plot.POINT_COLOR_CYCLE
+
     for rcts in rcts_lst:
         print("\n---------------------------------------------")
         # Gather data
@@ -1799,17 +1801,21 @@ def display_branching_fractions(
         # Branching fraction
         prods = rate_df.get_column(col_prod).to_list()
         labels = list(map("+".join, prods))
+        nrates = rate_df.height
+        rate_colors = list(itertools.islice(itertools.cycle(colors), nrates))
 
         # Branching fractions
         fracs = [r.rate for r in rate_df.get_column(col_frac).to_list()]
         fracs.insert(0, functools.reduce(operator.add, fracs))
         frac_labels = labels.copy()
         frac_labels.insert(0, "total")
+        frac_colors = [ac.util.plot.Color.black, *rate_colors]
         frac_chart = ac.rate.data.display(
             fracs,
             T_range=T_range,
             P=P,
             label=frac_labels,
+            color=frac_colors,
             plot_type="simple",
             y_label="𝑓",
             y_unit="",
@@ -1821,7 +1827,10 @@ def display_branching_fractions(
         fits = [r.rate for r in rate_df.get_column(col_fit).to_list()]
         objs = [*rates, *fits]
         obj_labels = [*labels, *labels]
-        rate_chart = ac.rate.data.display(objs, T_range=T_range, P=P, label=obj_labels)
+        obj_colors = [*rate_colors, *rate_colors]
+        rate_chart = ac.rate.data.display(
+            objs, T_range=T_range, P=P, label=obj_labels, color=obj_colors
+        )
         ipy_display(rate_chart)
 
 
