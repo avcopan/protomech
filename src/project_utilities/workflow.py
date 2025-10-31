@@ -508,6 +508,8 @@ def prepare_simulation(tag: str, stoichs: Sequence[str], root_path: str | Path) 
     ]
     print(f" - Parent: {par_mech_json}")
     par_mech = automech.io.read(par_mech_json)
+    par_index_col = "parent_index"
+    par_mech = automech.with_index(par_mech, col=par_index_col, offset=1)
     print(f" - Calculated: {mech_jsons}")
     mechs = list(map(automech.io.read, mech_jsons))
     mech = automech.combine_all(mechs)
@@ -535,12 +537,36 @@ def prepare_simulation(tag: str, stoichs: Sequence[str], root_path: str | Path) 
         tag, "dat", path=p_.chemkin(root_path)
     )
     calc_ckin = p_.calculated_mechanism(tag, "dat", path=p_.chemkin(root_path))
+    sort_cols = [ReactionSorted.pes, ReactionSorted.subpes, ReactionSorted.channel]
+    info_cols = [
+        ReactionRateExtra.well_skipping,
+        ReactionRateExtra.cleared,
+        ReactionRateExtra.partially_cleared,
+    ]
+    full_control_col_groups = ([par_index_col],)
+    calc_col_groups = (sort_cols, info_cols)
+    full_calc_col_groups = (*full_control_col_groups, *calc_col_groups)
     print(f" - Full control: {full_control_ckin}")
-    automech.io.chemkin.write.mechanism(full_control_mech, full_control_ckin)
+    automech.io.chemkin.write.mechanism(
+        full_control_mech,
+        out=full_control_ckin,
+        rxn_data_col_groups=full_control_col_groups,
+        sort_data=True,
+    )
     print(f" - Full calculated: {full_calc_ckin}")
-    automech.io.chemkin.write.mechanism(full_calc_mech, full_calc_ckin)
+    automech.io.chemkin.write.mechanism(
+        full_calc_mech,
+        out=full_calc_ckin,
+        rxn_data_col_groups=full_calc_col_groups,  # type: ignore
+        sort_data=True,
+    )
     print(f" - Calculated: {calc_ckin}")
-    automech.io.chemkin.write.mechanism(mech, calc_ckin)
+    automech.io.chemkin.write.mechanism(
+        mech,
+        out=calc_ckin,
+        rxn_data_col_groups=calc_col_groups,  # type: ignore
+        sort_data=True,
+    )
 
     print("Converting ChemKin mechanism to Cantera YAML...")
     full_control_yaml = p_.full_control_mechanism(
