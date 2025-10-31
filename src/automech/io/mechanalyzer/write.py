@@ -8,9 +8,11 @@ import pandas
 import polars
 
 from ..._mech import Mechanism
+from ...reaction import ReactionSorted
 from ...species import Species
 from ...util import df_, pandera_
 from ..chemkin import write as chemkin_write
+from ..data import encoder
 
 
 class MASpecies(pandera_.Model):
@@ -42,8 +44,17 @@ def mechanism(
         dictionary and species dataframe?
     :return: MechaAnalyzer reaction dictionary (or CHEMKIN string) and species dataframe
     """
+    data_col_groups = ()
+    if pandera_.has_columns(ReactionSorted, mech.reactions):  # type: ignore
+        data_col_groups = [pandera_.columns(ReactionSorted)]  # type: ignore
+
     mech_str = chemkin_write.reactions_block(
-        mech, fill_rates=fill_rates, comment_sep="#"
+        mech,
+        fill_rates=fill_rates,
+        comment_sep="#",
+        data_col_groups=data_col_groups,
+        sort_data=True,
+        encoder=encoder.mechanalyzer,
     )
     if rxn_out is not None:
         rxn_out: Path = Path(rxn_out)
