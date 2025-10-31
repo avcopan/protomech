@@ -583,6 +583,18 @@ def without_unused_species(mech: Mechanism) -> Mechanism:
     return mech
 
 
+def with_index(mech: Mechanism, col: str, offset: int = 0) -> Mechanism:
+    """Add index column for species and reactions.
+
+    :param mech: Mechanism
+    :param col: Key column identifying common species and reactions
+    :return: Mechanism
+    """
+    spc_df = df_.with_index(mech.species, col=col, offset=offset)
+    rxn_df = df_.with_index(mech.reactions, col=col, offset=offset)
+    return mech.model_copy(update={"species": spc_df, "reactions": rxn_df})
+
+
 def with_key(
     mech: Mechanism, col: str = "key", stereo: bool = True, reversible: bool = False
 ) -> Mechanism:
