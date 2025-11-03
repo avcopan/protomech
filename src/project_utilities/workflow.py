@@ -964,25 +964,14 @@ def make_chart(
     """
     x_title = x_title or x_col
     y_title = y_title or y_col
-    line_dfs = [
-        isolate_xy_columns(s, data_dct.get(s), x_col, y_col) for s in line_sources
-    ]
-    point_df = isolate_xy_columns(
-        point_source, data_dct.get(point_source), x_col, y_col
-    )
+    line_dfs = [isolate_xy_columns(s, data_dct[s], x_col, y_col) for s in line_sources]
 
     line_df = functools.reduce(lambda x, y: x.join(y, on=x_col), line_dfs)
 
     line_colors = altair.Scale(
         domain=line_sources, range=COLOR_SEQUENCE[: len(line_sources)]
     )
-
-    point_chart = (
-        altair.Chart(point_df)
-        .mark_circle()
-        .encode(x=x_col, y=point_source, color=altair.value("black"))
-    )
-    line_chart = (
+    chart = (
         altair.Chart(line_df)
         .mark_line()
         .transform_fold(fold=line_sources)
@@ -992,7 +981,17 @@ def make_chart(
             color=altair.Color("key:N", scale=line_colors),
         )
     )
-    return line_chart + point_chart
+
+    if point_source is not None:
+        point_df = isolate_xy_columns(
+            point_source, data_dct[point_source], x_col, y_col
+        )
+        chart += (
+            altair.Chart(point_df)
+            .mark_circle()
+            .encode(x=x_col, y=point_source, color=altair.value("black"))
+        )
+    return chart
 
 
 # Helpers
