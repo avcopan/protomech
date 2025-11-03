@@ -641,10 +641,10 @@ def prepare_simulation_species(tag: str, root_path: str | Path) -> pl.DataFrame:
 def run_o2_simulation(
     tag: str,
     root_path: str | Path,
-    temp_k: Number = 825,
-    pres_atm: Number = 1.1,
-    tau_s: Number = 4,
-    vol_cm3: Number = 1,
+    temp_k: float = 825,
+    pres_atm: float = 1.1,
+    tau_s: float = 4,
+    vol_cm3: float = 1,
     gather_every: int = 1,
     max_time: int = 300,
     control: bool = False,
@@ -737,11 +737,11 @@ def run_o2_simulation(
 def run_t_simulation(
     tag: str,
     root_path: str | Path,
-    pres_atm: Number = 1.1,
-    tau_s: Number = 4,
-    vol_cm3: Number = 1,
+    pres_atm: float = 1.1,
+    tau_s: float = 4,
+    vol_cm3: float = 1,
     gather_every: int = 1,
-    max_time: int = 300,
+    max_time: int = 600,
     control: bool = False,
 ) -> None:
     """Simulate JSR O2 sweep with model.
@@ -814,7 +814,7 @@ def run_t_simulation(
                 vol=vol_cm3,
                 conc=conc,
             )
-            x_dct = reactor.thermo.mole_fraction_dict()
+            x_dct = reactor.thermo.mole_fraction_dict()  # type: ignore
             sim_dct = {s: (*x, x_dct.get(s)) for s, x in sim_dct.items()}
             print(f"Calculated: Finished in {time.time() - time0} s")
         except TimeoutError:
@@ -840,7 +840,7 @@ def run_t_simulation(
 def plot_o2_simulation(
     tag: str,
     root_path: str | Path,
-    x_col: str,
+    x_col: str = "O2_molecules",
     x_title: str = "O₂ (molec/cm³) ⋅ 10⁻¹⁸",
     y_title: str = "concentration (ppm)",
     control: bool = True,
@@ -880,6 +880,70 @@ def plot_o2_simulation(
     if control:
         sim_df0 = pl.read_csv(
             p_.full_control_mechanism(tag, "csv", path=p_.cantera_o2(root_path))
+        )
+        data_dct[control_label] = sim_df0
+        line_sources.append(control_label)
+
+    chart_dct = {
+        name: make_chart(
+            data_dct,
+            x_col,
+            name,
+            line_sources=line_sources,
+            point_source=point_source,
+            x_title=x_title,
+            y_title=y_title,
+        )
+        for name in name_df.get_column(Species.name).to_list()
+    }
+    return chart_dct
+
+
+def plot_t_simulation(
+    tag: str,
+    root_path: str | Path,
+    x_col: str = "temperature",
+    x_title: str = "temperature (K)",
+    y_title: str = "concentration (ppm)",
+    control: bool = True,
+    line_source_: str | Sequence[str] | None = None,
+    point_source: str | None = None,
+    my_work_label: str = "This work",
+    control_label: str = "Control",
+) -> dict[str, altair.Chart]:
+    """Plot simulation results.
+
+    :param tag: Mechanism tag
+    :param root_path: Project root directory
+    :param control: Whether to include the control line
+    :param line_source_: Extra data source(s) to plot as line(s)
+    :param point_source: Extra data source to plot as points
+    :return: Altair chart
+    """
+    line_source_ = [] if line_source_ is None else line_source_
+    line_sources = [line_source_] if isinstance(line_source_, str) else line_source_
+    sources = [*line_sources, point_source] if point_source else line_sources
+
+    # Read in simulation results
+    data_path = p_.data(root_path)
+    expt_df = pl.read_csv(data_path / "hill" / "T" / "Experiment.csv")
+
+    name_df = pl.read_csv(p_.simulation_species(tag, path=p_.cantera(root_path)))
+    name_df = name_df.filter(pl.col("Experiment").is_in(expt_df.columns))
+
+    sim_df = pl.read_csv(
+        p_.full_calculated_mechanism(tag, "csv", path=p_.cantera_t(root_path))
+    )
+
+    data_dct = {s: pl.read_csv(data_path / "hill" / "T" / f"{s}.csv") for s in sources}
+    data_dct = {s: rename_columns(s, d, name_df) for s, d in data_dct.items()}
+    data_dct[my_work_label] = sim_df
+    line_sources.insert(0, my_work_label)
+
+    # Add the control line, if requested
+    if control:
+        sim_df0 = pl.read_csv(
+            p_.full_control_mechanism(tag, "csv", path=p_.cantera_t(root_path))
         )
         data_dct[control_label] = sim_df0
         line_sources.append(control_label)
