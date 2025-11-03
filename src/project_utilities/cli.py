@@ -23,10 +23,14 @@ def simulate():
 @click.argument("tag")
 @click.argument("root_path")
 @click.option("-e", "--gather_every", default=1, help="Run every n concentrations.")
+@click.option(
+    "-c", "--control", is_flag=True, default=False, help="Run the control model."
+)
 def simulate_o2(
     tag: str,
     root_path: str | Path,
     gather_every: int = 1,
+    control: bool = False,
 ) -> None:
     """Simulate model (JSR).
 
@@ -38,7 +42,9 @@ def simulate_o2(
     :param vol_cm3: Volume in cm^3
     :param gather_every: Gather every nth point
     """
-    workflow.run_o2_simulation(tag=tag, root_path=root_path, gather_every=gather_every)
+    workflow.run_o2_simulation(
+        tag=tag, root_path=root_path, gather_every=gather_every, control=control
+    )
 
 
 @simulate.command("t")

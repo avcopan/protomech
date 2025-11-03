@@ -869,9 +869,6 @@ def plot_o2_simulation(
     sim_df = pl.read_csv(
         p_.full_calculated_mechanism(tag, "csv", path=p_.cantera_o2(root_path))
     )
-    sim_df0 = pl.read_csv(
-        p_.full_control_mechanism(tag, "csv", path=p_.cantera_o2(root_path))
-    )
 
     data_path = p_.data(root_path)
     data_dct = {s: pl.read_csv(data_path / "hill" / f"{s}.csv") for s in sources}
@@ -881,6 +878,9 @@ def plot_o2_simulation(
 
     # Add the control line, if requested
     if control:
+        sim_df0 = pl.read_csv(
+            p_.full_control_mechanism(tag, "csv", path=p_.cantera_o2(root_path))
+        )
         data_dct[control_label] = sim_df0
         line_sources.append(control_label)
 
