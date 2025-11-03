@@ -4,6 +4,9 @@ version = "0.1.0"
 requires-python = ">= 3.12"
 dependencies = ["pyvis"]
 
+[project.scripts]
+putils = "project_utilities.cli:main"
+
 [dependency-groups]
 test = ["pytest", "pytest-xdist[psutil]"]
 lint = ["ruff", "lefthook"]

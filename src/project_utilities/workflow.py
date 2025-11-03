@@ -604,7 +604,7 @@ def plot_rates(tag: str, root_path: str | Path) -> None:
     )
 
 
-def prepare_simulation_species(tag: str, root_path: str | Path) -> None:
+def prepare_simulation_species(tag: str, root_path: str | Path) -> pl.DataFrame:
     """Simulate model (JSR).
 
     :param tag: Mechanism tag

@@ -15099,7 +15099,7 @@ packages:
   - python >=3.12
   - python *
   input:
-    hash: c7989775286ef515c3b21cb5423ab9715d9a27da7c2f7b94edfe337e62e36b26
+    hash: 584a8ffb752045a34d57ade50c065023a4509fb312e9fbabc073cf06306094d6
     globs:
     - pyproject.toml
 - pypi: https://files.pythonhosted.org/packages/38/61/f76959fba841bf5b61123fbf4b650886dc4094c6858008b5bf73d9057216/psutil-7.1.0-cp36-abi3-macosx_11_0_arm64.whl
