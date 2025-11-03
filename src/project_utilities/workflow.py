@@ -344,8 +344,7 @@ def postprocess_rate_data(
     therm_tag: str,
     root_path: str | Path,
     *,
-    clear_nodes: Sequence[str] = (),
-    clear_edges: Sequence[tuple[str, str]] = (),
+    clear_rates: Sequence[tuple[str, str]] = (),
     T_drop: Sequence[float] = (300, 400),
     A_fill: float = 1e-20,
     validate: bool = True,
@@ -384,19 +383,12 @@ def postprocess_rate_data(
     print(" - Enforcing equal enantiomer rates...")
     surf = mess.surf.enforce_equal_enantiomer_rates(surf0, tol=0.1)
 
-    if clear_nodes:
-        print(f" - Clearing rates for nodes {clear_nodes}...")
-        clear_node_keys = [
-            mess.surf.node_key_from_label(surf, label) for label in clear_nodes
+    if clear_rates:
+        print(f" - Clearing rates for edges {clear_rates}...")
+        clear_rate_keys = [
+            mess.surf.rate_key_from_labels(surf, labels) for labels in clear_rates
         ]
-        surf = mess.surf.clear_node_rates(surf, keys=clear_node_keys)
-
-    if clear_edges:
-        print(f" - Clearing rates for edges {clear_edges}...")
-        clear_edge_keys = [
-            mess.surf.edge_key_from_labels(surf, labels) for labels in clear_edges
-        ]
-        surf = mess.surf.clear_edge_rates(surf, keys=clear_edge_keys)
+        surf = mess.surf.clear_rates(surf, keys=clear_rate_keys)
 
     print(" - Clearing unfittable pressure ranges...")
     surf = mess.surf.clear_unfittable_pressure_ranges(surf)

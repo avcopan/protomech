@@ -536,12 +536,12 @@ def node_key_from_label(surf: Surface, label: str) -> int:
     return key
 
 
-def edge_key_from_labels(surf: Surface, labels: tuple[str, str]) -> frozenset[int]:
+def rate_key_from_labels(surf: Surface, labels: tuple[str, str]) -> tuple[int, int]:
     """Get edge key from node labels."""
     label1, label2 = labels
     key1 = node_key_from_label(surf, label1)
     key2 = node_key_from_label(surf, label2)
-    return frozenset({key1, key2})
+    return (key1, key2)
 
 
 def node_key_from_names(
@@ -1035,40 +1035,6 @@ def remove_well_skipping_rates(
     surf = surf.model_copy(deep=True)
     surf.rates = {k: v for k, v in surf.rates.items() if k not in drop_keys}
     return surf
-
-
-def clear_node_rates(surf: Surface, keys: Collection[int]) -> Surface:
-    """Clear rates associated with a node (well-skipping rates are dropped).
-
-    :param surf: Surface
-    :param keys: Keys of nodes to remove
-    :return: Surface
-    """
-    edge_keys_ = edge_keys(surf)
-    rates = {}
-    for rate_key, rate in surf.rates.items():
-        key = next((k for k in keys if k in rate_key), None)
-        if key is None:
-            rates[rate_key] = rate.model_copy()
-        elif frozenset(rate_key) in edge_keys_:
-            rates[rate_key] = rate.clear()
-
-    return surf.model_copy(update={"rates": rates})
-
-
-def clear_edge_rates(
-    surf: Surface, keys: Collection[Annotated[Collection[int], 2]]
-) -> Surface:
-    """Clear rates associated with an edge.
-
-    :param surf: Surface
-    :param keys: Keys of edges to remove
-    :return: Surface
-    """
-    all_keys = list(
-        itertools.chain.from_iterable([(k1, k2), (k2, k1)] for k1, k2 in keys)
-    )
-    return clear_rates(surf, all_keys)
 
 
 def clear_rates(surf: Surface, keys: Collection[tuple[int, int]]) -> Surface:
