@@ -1846,6 +1846,33 @@ def display_branching_fractions(
         ipy_display(rate_chart)
 
 
+def consumption_mechanism(
+    mech: Mechanism,
+    reactants: Sequence[str],
+    *,
+    rev_mapping: Mapping[str, str] | None = None,
+) -> Mechanism:
+    """Construct consumption mechanism for particular reactants.
+
+    :param mech: Mechanism
+    :param reactants: Reactants
+    :param rev_mapping: Mapping to swap columns on reversal
+    :return: Mechanism
+    """
+    match = reaction.reagents_match_expression(reactants, col=Reaction.reactants)  # type: ignore
+    rev_match = reaction.reagents_match_expression(reactants, col=Reaction.products)  # type: ignore
+
+    rev_mapping_: dict[str, str] = {Reaction.reactants: Reaction.products}  # type: ignore
+    if rev_mapping is not None:
+        rev_mapping_.update(rev_mapping)
+    rev_mapping_.update({v: k for k, v in rev_mapping_.items()})
+
+    rxn_df = mech.reactions.filter(match)
+    rev_rxn_df = mech.reactions.filter(rev_match).rename(rev_mapping_)
+    rxn_df = polars.concat([rxn_df, rev_rxn_df], how="diagonal_relaxed")
+    return mech.model_copy(update={"reactions": rxn_df})
+
+
 # Helpers
 def indent_print(text: str, n: int = 1) -> None:
     """Indent text by a number of spaces and print.
