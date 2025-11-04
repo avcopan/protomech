@@ -616,7 +616,7 @@ def with_key(
     return mech
 
 
-def with_rate_objects(
+def with_rate_object_column(
     mech: Mechanism,
     col: str,
     comp_mechs: Sequence[Mechanism] = (),
@@ -635,7 +635,9 @@ def with_rate_objects(
     :return: Mechanism
     """
     mech = mech.model_copy()
-    mech.reactions = reaction.with_rate_objects(mech.reactions, col=col, fill=fill)
+    mech.reactions = reaction.with_rate_object_column(
+        mech.reactions, col=col, fill=fill
+    )
     if comp_mechs is not None:
         mech = with_comparison_rate_objects(
             mech, comp_mechs=comp_mechs, comp_cols=comp_cols, stereo=comp_stereo
@@ -681,7 +683,7 @@ def with_comparison_rate_objects(
         rxn_df = reaction.with_key(
             rxn_df, col=key_col, spc_df=spc_df, stereo=comp_stereo, reversible=False
         )
-        rxn_df = reaction.with_rate_objects(rxn_df, col=comp_col)
+        rxn_df = reaction.with_rate_object_column(rxn_df, col=comp_col)
         rxn_df = rxn_df.select(key_col, comp_col)
         mech.reactions = mech.reactions.join(rxn_df, on=key_col, how="left")
 
@@ -1108,7 +1110,7 @@ def expand_parent_stereo(mech: Mechanism, sub_mech: Mechanism) -> Mechanism:
     obj_col = c_.temp()
     cols = [Reaction.reactants, Reaction.products, ReactionRate.rate]
     dtypes = list(map(polars.List, map(exp_rxn_df.schema.get, cols)))
-    exp_rxn_df = reaction.with_rate_objects(exp_rxn_df, col=obj_col)
+    exp_rxn_df = reaction.with_rate_object_column(exp_rxn_df, col=obj_col)
     exp_rxn_df = df_.map_(exp_rxn_df, obj_col, cols, exp_, dtype_=dtypes, bar=True)
     exp_rxn_df = exp_rxn_df.explode(cols)
     mech.reactions = polars.concat([rem_rxn_df, exp_rxn_df.drop(obj_col)])
@@ -1616,7 +1618,7 @@ def display_reactions(
     assert len(comp_labels) == ncomps, f"{comp_labels} !~ ncomps"
     obj_col = c_.temp()
     comp_cols = [c_.temp() for _ in range(ncomps)]
-    mech = with_rate_objects(
+    mech = with_rate_object_column(
         mech,
         col=obj_col,
         comp_mechs=comp_mechs,
@@ -1740,7 +1742,7 @@ def display_branching_fractions(
     rxn_df = mech.reactions
 
     for col_out, col_in in col_rate_dct.items():
-        rxn_df = reaction.with_rate_objects(
+        rxn_df = reaction.with_rate_object_column(
             rxn_df,
             col_out,
             rate_col=col_in,  # type: ignore

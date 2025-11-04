@@ -175,7 +175,7 @@ def reactions_block(
 
     # Add reaction rate objects
     obj_col = c_.temp()
-    rxn_df = reaction.with_rate_objects(rxn_df, obj_col, fill=fill_rates)
+    rxn_df = reaction.with_rate_object_column(rxn_df, obj_col, fill=fill_rates)
 
     # Add reaction equations to determine apppropriate width
     eq_col = c_.temp()

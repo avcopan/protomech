@@ -216,7 +216,7 @@ def reaction_rate_objects(rxn_df: polars.DataFrame, eq: str) -> list[ac.rate.Rea
         polars.col(ReactionRate.rate).is_not_null()
         & polars.col(ReactionRate.reversible).is_not_null()
     )
-    rxn_df = with_rate_objects(rxn_df, col=tmp_col)
+    rxn_df = with_rate_object_column(rxn_df, col=tmp_col)
     return rxn_df.get_column(tmp_col).to_list()
 
 
@@ -417,7 +417,7 @@ def with_sorted_reagents(
     )
 
 
-def with_rate_objects(
+def with_rate_object_column(
     rxn_df: polars.DataFrame,
     col: str,
     fill: bool = False,

@@ -47,7 +47,7 @@ from ._mech import (
     with_fake_sort_data,
     with_index,
     with_key,
-    with_rate_objects,
+    with_rate_object_column,
     with_sort_data,
     with_sorted_reagents,
     with_species,
@@ -90,7 +90,7 @@ __all__ = [
     "without_unused_species",
     "with_index",
     "with_key",
-    "with_rate_objects",
+    "with_rate_object_column",
     "with_comparison_rate_objects",
     "expand_stereo",
     # binary operations
