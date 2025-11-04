@@ -646,7 +646,7 @@ def run_o2_simulation(
     tau_s: float = 4,
     vol_cm3: float = 1,
     gather_every: int = 1,
-    max_time: int = 300,
+    max_time: int = 1200,
     control: bool = False,
 ) -> None:
     """Simulate JSR O2 sweep with model.
@@ -741,7 +741,7 @@ def run_t_simulation(
     tau_s: float = 4,
     vol_cm3: float = 1,
     gather_every: int = 1,
-    max_time: int = 600,
+    max_time: int = 1200,
     control: bool = False,
 ) -> None:
     """Simulate JSR O2 sweep with model.
