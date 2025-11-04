@@ -417,6 +417,56 @@ def with_sorted_reagents(
     )
 
 
+def with_rate_object_columns(
+    rxn_df: polars.DataFrame, obj_mapping: Mapping[str, str]
+) -> polars.DataFrame:
+    """Add rate object columns.
+
+    :param rxn_df: Reaction DataFrame
+    :param obj_mapping: Mapping of rate data to object columns
+    :return: Reaction DataFrame
+    """
+    cols = [
+        Reaction.reactants,
+        Reaction.products,
+        ReactionRate.reversible,
+    ]
+    fields = [
+        Reaction.reactants,
+        Reaction.products,
+        ReactionRate.reversible,
+        ReactionRate.rate,
+    ]
+    return rxn_df.with_columns(
+        polars.struct([*cols, rate_col])
+        .struct.rename_fields(fields)
+        .map_elements(ac.rate.Reaction.model_validate, return_dtype=polars.Object)
+        .alias(obj_col)
+        for rate_col, obj_col in obj_mapping.items()
+    )
+
+
+def update_rate_data_from_object_columns(
+    rxn_df: polars.DataFrame, obj_mapping: Mapping[str, str]
+) -> polars.DataFrame:
+    """Add rate object columns.
+
+    :param rxn_df: Reaction DataFrame
+    :param obj_mapping: Mapping of rate data to object columns
+    :return: Reaction DataFrame
+    """
+    rate_cols = list(obj_mapping.keys())
+    rxn_df = rxn_df.drop(rate_cols).with_columns(
+        polars.Series(
+            rate_col,
+            [o.rate.model_dump() for o in rxn_df.get_column(obj_col)],
+            strict=False,
+        )
+        for rate_col, obj_col in obj_mapping.items()
+    )
+    return rxn_df
+
+
 def with_rate_object_column(
     rxn_df: polars.DataFrame,
     col: str,

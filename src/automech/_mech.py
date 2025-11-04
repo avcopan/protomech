@@ -817,6 +817,83 @@ def expand_stereo(
     return mech, err_mech
 
 
+def consumption_mechanism(
+    mech: Mechanism,
+    reactants: Sequence[str],
+    *,
+    rev_mapping: Mapping[str, str] | None = None,
+) -> Mechanism:
+    """Construct consumption mechanism for particular reactants.
+
+    :param mech: Mechanism
+    :param reactants: Reactants
+    :param rev_mapping: Mapping to swap columns on reversal
+    :return: Mechanism
+    """
+    match = reaction.reagents_match_expression(reactants, col=Reaction.reactants)  # type: ignore
+    rev_match = reaction.reagents_match_expression(reactants, col=Reaction.products)  # type: ignore
+
+    rev_mapping_: dict[str, str] = {Reaction.reactants: Reaction.products}  # type: ignore
+    if rev_mapping is not None:
+        rev_mapping_.update(rev_mapping)
+    rev_mapping_.update({v: k for k, v in rev_mapping_.items()})
+
+    rxn_df = mech.reactions.filter(match)
+    rev_rxn_df = mech.reactions.filter(rev_match).rename(rev_mapping_)
+    rxn_df = polars.concat([rxn_df, rev_rxn_df], how="diagonal_relaxed")
+    return mech.model_copy(update={"reactions": rxn_df})
+
+
+def combine_enantiomers(mech: Mechanism, rate_cols: Sequence[str] = ()) -> Mechanism:
+    """Combine enantiomers in a mechanism.
+
+    :param mech: Mechanism
+    :return: Mechanism
+    """
+
+    def racemic_(expr: polars.Expr) -> polars.Expr:
+        return expr.str.replace(r"[01]$", "_")
+
+    # Combine enantiomer species
+    spc_df = mech.species
+    spc_df = spc_df.group_by(
+        racemic_(polars.col(Species.name)), maintain_order=True
+    ).agg(polars.col("*").first())
+
+    # Combine enantiomer reactants (no change in rates)
+    rxn_df = mech.reactions
+    rxn_df = rxn_df.group_by(
+        polars.col(Reaction.reactants).list.eval(racemic_(polars.element())),
+        polars.col(Reaction.products),
+        maintain_order=True,
+    ).agg(polars.col("*").first())
+
+    # Combine enantiomer products (count group size for rate update)
+    num_col = c_.temp()
+    rxn_df = rxn_df.group_by(
+        polars.col(Reaction.reactants),
+        polars.col(Reaction.products).list.eval(racemic_(polars.element())),
+        maintain_order=True,
+    ).agg(polars.col("*").first(), polars.count().alias(num_col))
+
+    # Update enantiomer product rates
+    obj_pre = c_.temp()
+    obj_mapping = c_.to_(rate_cols, obj_pre)
+    rxn_df = reaction.with_rate_object_columns(rxn_df, obj_mapping)
+    #   - Multiply by the number columns for each
+    for obj_col in obj_mapping.values():
+        rxn_df = df_.map_(
+            rxn_df,
+            [obj_col, num_col],
+            obj_col,
+            func_=operator.mul,
+            dtype_=polars.Object,  # type: ignore
+        )
+    rxn_df = reaction.update_rate_data_from_object_columns(rxn_df, obj_mapping)
+    rxn_df = rxn_df.drop(num_col, *obj_mapping.values())
+    return mech.model_copy(update={"species": spc_df, "reactions": rxn_df})
+
+
 # binary operations
 def update(
     mech1: Mechanism, mech2: Mechanism, drop_orig: bool = True, how: str = "full"
@@ -1846,33 +1923,6 @@ def display_branching_fractions(
             objs, T_range=T_range, P=P, label=obj_labels, color=obj_colors
         )
         ipy_display(rate_chart)
-
-
-def consumption_mechanism(
-    mech: Mechanism,
-    reactants: Sequence[str],
-    *,
-    rev_mapping: Mapping[str, str] | None = None,
-) -> Mechanism:
-    """Construct consumption mechanism for particular reactants.
-
-    :param mech: Mechanism
-    :param reactants: Reactants
-    :param rev_mapping: Mapping to swap columns on reversal
-    :return: Mechanism
-    """
-    match = reaction.reagents_match_expression(reactants, col=Reaction.reactants)  # type: ignore
-    rev_match = reaction.reagents_match_expression(reactants, col=Reaction.products)  # type: ignore
-
-    rev_mapping_: dict[str, str] = {Reaction.reactants: Reaction.products}  # type: ignore
-    if rev_mapping is not None:
-        rev_mapping_.update(rev_mapping)
-    rev_mapping_.update({v: k for k, v in rev_mapping_.items()})
-
-    rxn_df = mech.reactions.filter(match)
-    rev_rxn_df = mech.reactions.filter(rev_match).rename(rev_mapping_)
-    rxn_df = polars.concat([rxn_df, rev_rxn_df], how="diagonal_relaxed")
-    return mech.model_copy(update={"reactions": rxn_df})
 
 
 # Helpers

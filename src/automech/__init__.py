@@ -5,6 +5,8 @@ from ._mech import (
     Mechanism,
     are_equivalent,
     combine_all,
+    combine_enantiomers,
+    consumption_mechanism,
     display,
     display_branching_fractions,
     display_reactions,
@@ -93,6 +95,8 @@ __all__ = [
     "with_rate_object_column",
     "with_comparison_rate_objects",
     "expand_stereo",
+    "consumption_mechanism",
+    "combine_enantiomers",
     # binary operations
     "update",
     "left_update",
