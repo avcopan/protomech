@@ -7,6 +7,9 @@ import altair as alt
 import autochem as ac
 import numpy as np
 import polars as pl
+from autochem import unit_
+from autochem.unit_ import UNITS, Units, UnitsData
+from autochem.util import plot
 
 from automech import Mechanism, combine_enantiomers, consumption_mechanism, reaction
 from automech.util import c_
@@ -110,9 +113,12 @@ def branching_fraction_chart(
     P_range: tuple[float, float],
     T: float,
     *,
-    label: bool = True,
     total: bool = False,
+    legend: bool = True,
+    units: UnitsData | None = None,
 ) -> alt.Chart:
+    units = UNITS if units is None else Units.model_validate(units)
+
     objs = [r.rate for r in rate_df.get_column(RateData.branch_frac_obj).to_list()]  # type: ignore
     labels = rate_df.get_column(RateData.label).to_list()
     colors = rate_df.get_column(RateData.color).to_list()
@@ -122,14 +128,27 @@ def branching_fraction_chart(
         labels.insert(0, "total")
         colors.insert(0, ac.util.plot.Color.black)
 
-    chart = ac.rate.data.display_p(
-        objs,
-        T=T,
-        P_range=P_range,
-        label=labels if label else None,
-        color=colors,
-        y_label="𝑓",
-        y_unit="",
+    x_data = np.linspace(*P_range, num=1000)
+    y_data = []
+    for obj in objs:
+        x_data_, y_data_ = obj.plot_data(T=T, P=P_range, units=units)
+        y_ = plot.transformed_spline_interpolator(x_data_, y_data_, x_trans=np.log10)
+        y_data.append(y_(x_data))
+
+    x_unit = unit_.pretty_string(units.pressure)
+    x_label = f"pressure ({x_unit})"
+    y_label = "branching fraction"
+    chart = plot.general(
+        y_data=y_data,
+        x_data=x_data,
+        labels=labels,
+        colors=colors,
+        x_label=x_label,
+        y_label=y_label,
+        x_scale=plot.log_scale(P_range),
+        x_axis=plot.log_scale_axis(P_range),
+        mark=plot.Mark.line,
+        legend=legend,
     )
     return chart
 
@@ -139,41 +158,47 @@ def rate_chart(
     T_range: tuple[float, float],
     P: float,
     *,
-    label: bool = True,
     total: bool = False,
-    T_drop: Sequence[float] = (),
-    extra_rates: dict[str, ac.rate.RateFit] | None = None,
-    extra_colors: dict[str, str] | None = None,
+    legend: bool = True,
+    units: UnitsData | None = None,
 ) -> alt.Chart:
+    units = UNITS if units is None else Units.model_validate(units)
     # Rates
     data_objs = [r.rate for r in rate_df.get_column(RateData.rate_data_obj).to_list()]  # type: ignore
-    data_objs = [r.drop_temperatures(T_drop) for r in data_objs]
     fit_objs = [r.rate for r in rate_df.get_column(RateData.rate_obj).to_list()]  # type: ignore
-    objs = [*data_objs, *fit_objs]
-    labels = rate_df.get_column(RateData.label).to_list() * 2
-    colors = rate_df.get_column(RateData.color).to_list() * 2
+    objs = [*fit_objs]
+    labels = rate_df.get_column(RateData.label).to_list()
+    colors = rate_df.get_column(RateData.color).to_list()
+    x_data = np.linspace(*T_range, num=1000)
+    y_data = []
+    for obj in objs:
+        y_data.append(obj(x_data, P, units=units))
+
+    y_range = (np.nanmin(y_data), np.nanmax(y_data))
+
     if total:
-        objs.insert(0, functools.reduce(operator.add, data_objs))
+        total_data_obj = functools.reduce(operator.add, data_objs)
+        x_data_, y_data_ = total_data_obj.plot_data(T=T_range, P=P, units=units)
+        y_ = plot.transformed_spline_interpolator(x_data_, y_data_)
+        y_data.insert(0, y_(x_data))
         labels.insert(0, "Total")
         colors.insert(0, ac.util.plot.Color.black)
 
-    if extra_rates is not None:
-        nrates = rate_df.height
-        nextra = len(extra_rates)
-        color_cycle = itertools.islice(
-            itertools.cycle(ac.util.plot.LINE_COLOR_CYCLE), nrates, nrates + nextra
-        )
-        color_dct = (
-            {label: next(color_cycle) for label in extra_rates}
-            if extra_colors is None
-            else extra_colors
-        )
-        for extra_label, extra_rate in extra_rates.items():
-            objs.append(extra_rate)
-            labels.append(extra_label)
-            colors.append(color_dct[extra_label])
-
-    chart = ac.rate.data.display(
-        objs, T_range=T_range, P=P, label=labels if label else None, color=colors
+    x_unit = unit_.pretty_string(units.temperature)
+    x_label = f"temperature ({x_unit})"
+    y_unit = unit_.pretty_string(units.rate_constant(order=objs[0].order))
+    y_label = f"rate constant ({y_unit})"
+    chart = plot.general(
+        y_data=y_data,
+        x_data=x_data,
+        labels=labels,
+        colors=colors,
+        x_label=x_label,
+        y_label=y_label,
+        x_scale=plot.regular_scale(T_range),
+        y_scale=plot.log_scale(y_range),
+        y_axis=plot.log_scale_axis(y_range),
+        mark=plot.Mark.line,
+        legend=legend,
     )
     return chart
