@@ -107,6 +107,29 @@ def rate_data(
     return rate_df
 
 
+def branching_fraction_xy_data(
+    rate_df: pl.DataFrame,
+    P_range: tuple[float, float],
+    T: float,
+    *,
+    total: bool = False,
+    units: UnitsData | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    units = UNITS if units is None else Units.model_validate(units)
+    objs = [r.rate for r in rate_df.get_column(RateData.branch_frac_obj).to_list()]  # type: ignore
+    if total:
+        objs.insert(0, functools.reduce(operator.add, objs))
+
+    x_data = np.linspace(*P_range, num=1000)
+    y_data = []
+    for obj in objs:
+        x_data_, y_data_ = obj.plot_data(T=T, P=P_range, units=units)
+        y_ = plot.transformed_spline_interpolator(x_data_, y_data_, x_trans=np.log10)
+        y_data.append(y_(x_data))
+
+    return x_data, np.asarray(y_data)
+
+
 def branching_fraction_chart(
     rate_df: pl.DataFrame,
     P_range: tuple[float, float],
@@ -116,28 +139,23 @@ def branching_fraction_chart(
     legend: bool = True,
     mark_kwargs: dict | None = None,
     units: UnitsData | None = None,
+    y_range: tuple[float, float] | None = None,
 ) -> alt.Chart:
     units = UNITS if units is None else Units.model_validate(units)
-
-    objs = [r.rate for r in rate_df.get_column(RateData.branch_frac_obj).to_list()]  # type: ignore
+    x_data, y_data = branching_fraction_xy_data(
+        rate_df=rate_df, P_range=P_range, T=T, total=total, units=units
+    )
     labels = rate_df.get_column(RateData.label).to_list()
     colors = rate_df.get_column(RateData.color).to_list()
 
     if total:
-        objs.insert(0, functools.reduce(operator.add, objs))
         labels.insert(0, "total")
         colors.insert(0, ac.util.plot.Color.black)
-
-    x_data = np.linspace(*P_range, num=1000)
-    y_data = []
-    for obj in objs:
-        x_data_, y_data_ = obj.plot_data(T=T, P=P_range, units=units)
-        y_ = plot.transformed_spline_interpolator(x_data_, y_data_, x_trans=np.log10)
-        y_data.append(y_(x_data))
 
     x_unit = unit_.pretty_string(units.pressure)
     x_label = f"pressure ({x_unit})"
     y_label = "branching fraction"
+    y_range = y_range or (0, 1)
     chart = plot.general(
         y_data=y_data,
         x_data=x_data,
@@ -147,8 +165,8 @@ def branching_fraction_chart(
         y_label=y_label,
         x_scale=plot.log_scale(P_range),
         x_axis=plot.log_scale_axis(P_range),
-        y_scale=plot.regular_scale((0, 1)),
-        y_axis=plot.regular_scale_axis((0, 1)),
+        y_scale=plot.regular_scale(y_range),
+        y_axis=plot.regular_scale_axis(y_range),
         mark=plot.Mark.line,
         mark_kwargs=mark_kwargs,
         legend=legend,
