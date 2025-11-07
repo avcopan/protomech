@@ -15,24 +15,22 @@ from automech import Mechanism, combine_enantiomers, consumption_mechanism, reac
 from automech.util import c_
 from automech.util.pandera_ import Model
 
-polars = pl
-
 
 class RateData(Model):
     reactants: list[str]
     products: list[str]
     # Forward data:
-    rate: polars.Struct
-    rate_data: polars.Struct
-    branch_frac: polars.Struct
+    rate: pl.Struct
+    rate_data: pl.Struct
+    branch_frac: pl.Struct
     # Forward objects:
-    rate_obj: polars.Object
-    rate_data_obj: polars.Object
-    branch_frac_obj: polars.Object
+    rate_obj: pl.Object
+    rate_data_obj: pl.Object
+    branch_frac_obj: pl.Object
     # Reverse data:
-    rev_rate: polars.Struct
-    rev_rate_data: polars.Struct
-    rev_branch_frac: polars.Struct
+    rev_rate: pl.Struct
+    rev_rate_data: pl.Struct
+    rev_branch_frac: pl.Struct
     # Descriptors:
     well_skipping: bool
     cleared: bool
