@@ -114,6 +114,7 @@ def branching_fraction_chart(
     *,
     total: bool = False,
     legend: bool = True,
+    mark_kwargs: dict | None = None,
     units: UnitsData | None = None,
 ) -> alt.Chart:
     units = UNITS if units is None else Units.model_validate(units)
@@ -149,6 +150,7 @@ def branching_fraction_chart(
         y_scale=plot.regular_scale((0, 1)),
         y_axis=plot.regular_scale_axis((0, 1)),
         mark=plot.Mark.line,
+        mark_kwargs=mark_kwargs,
         legend=legend,
     )
     return chart
@@ -161,6 +163,7 @@ def rate_chart(
     *,
     total: bool = False,
     legend: bool = True,
+    mark_kwargs: dict | None = None,
     units: UnitsData | None = None,
 ) -> alt.Chart:
     units = UNITS if units is None else Units.model_validate(units)
@@ -197,6 +200,7 @@ def rate_chart(
         y_scale=plot.log_scale(y_range),
         y_axis=plot.log_scale_axis(y_range),
         mark=plot.Mark.line,
+        mark_kwargs=mark_kwargs,
         legend=legend,
     )
     return chart
