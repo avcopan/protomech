@@ -156,6 +156,29 @@ def branching_fraction_chart(
     return chart
 
 
+def rate_xy_data(
+    rate_df: pl.DataFrame,
+    T_range: tuple[float, float],
+    P: float,
+    *,
+    total: bool = False,
+    units: UnitsData | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    units = UNITS if units is None else Units.model_validate(units)
+    # Rates
+    objs = [r.rate for r in rate_df.get_column(RateData.rate_obj).to_list()]  # type: ignore
+    x_data = np.linspace(*T_range, num=1000)
+    y_data = []
+    for obj in objs:
+        y_data.append(obj(x_data, P, units=units))
+
+    if total:
+        y_data.insert(0, sum(y_data))
+
+    y_data = np.where(np.greater(y_data, 0), y_data, np.nan)
+    return x_data, y_data
+
+
 def rate_chart(
     rate_df: pl.DataFrame,
     T_range: tuple[float, float],
@@ -165,28 +188,25 @@ def rate_chart(
     legend: bool = True,
     mark_kwargs: dict | None = None,
     units: UnitsData | None = None,
+    y_range: tuple[float, float] | None = None,
 ) -> alt.Chart:
     units = UNITS if units is None else Units.model_validate(units)
-    # Rates
-    objs = [r.rate for r in rate_df.get_column(RateData.rate_obj).to_list()]  # type: ignore
+    x_data, y_data = rate_xy_data(
+        rate_df=rate_df, T_range=T_range, P=P, total=total, units=units
+    )
     labels = rate_df.get_column(RateData.label).to_list()
     colors = rate_df.get_column(RateData.color).to_list()
-    x_data = np.linspace(*T_range, num=1000)
-    y_data = []
-    for obj in objs:
-        y_data.append(obj(x_data, P, units=units))
-
     if total:
-        y_data.insert(0, sum(y_data))
         labels.insert(0, "Total")
         colors.insert(0, ac.util.plot.Color.black)
 
     y_data = np.where(np.greater(y_data, 0), y_data, np.nan)
-    y_range = (np.nanmin(y_data), np.nanmax(y_data))
+    y_range = y_range or (np.nanmin(y_data), np.nanmax(y_data))
 
     x_unit = unit_.pretty_string(units.temperature)
     x_label = f"temperature ({x_unit})"
-    y_unit = unit_.pretty_string(units.rate_constant(order=objs[0].order))
+    obj = rate_df.select(pl.col(RateData.rate_obj).first()).item()
+    y_unit = unit_.pretty_string(units.rate_constant(order=obj.rate.order))
     y_label = f"rate constant ({y_unit})"
     chart = plot.general(
         y_data=y_data,
