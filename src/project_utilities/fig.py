@@ -165,9 +165,7 @@ def rate_chart(
 ) -> alt.Chart:
     units = UNITS if units is None else Units.model_validate(units)
     # Rates
-    data_objs = [r.rate for r in rate_df.get_column(RateData.rate_data_obj).to_list()]  # type: ignore
-    fit_objs = [r.rate for r in rate_df.get_column(RateData.rate_obj).to_list()]  # type: ignore
-    objs = [*fit_objs]
+    objs = [r.rate for r in rate_df.get_column(RateData.rate_obj).to_list()]  # type: ignore
     labels = rate_df.get_column(RateData.label).to_list()
     colors = rate_df.get_column(RateData.color).to_list()
     x_data = np.linspace(*T_range, num=1000)
@@ -176,13 +174,11 @@ def rate_chart(
         y_data.append(obj(x_data, P, units=units))
 
     if total:
-        total_data_obj = functools.reduce(operator.add, data_objs)
-        x_data_, y_data_ = total_data_obj.plot_data(T=T_range, P=P, units=units)
-        y_ = plot.transformed_spline_interpolator(x_data_, y_data_)
-        y_data.insert(0, y_(x_data))
+        y_data.insert(0, sum(y_data))
         labels.insert(0, "Total")
         colors.insert(0, ac.util.plot.Color.black)
 
+    y_data = np.where(np.greater(y_data, 0), y_data, np.nan)
     y_range = (np.nanmin(y_data), np.nanmax(y_data))
 
     x_unit = unit_.pretty_string(units.temperature)
