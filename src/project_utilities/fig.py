@@ -196,6 +196,7 @@ def rate_chart(
         x_label=x_label,
         y_label=y_label,
         x_scale=plot.regular_scale(T_range),
+        x_axis=plot.regular_scale_axis(),
         y_scale=plot.log_scale(y_range),
         y_axis=plot.log_scale_axis(y_range),
         mark=plot.Mark.line,
