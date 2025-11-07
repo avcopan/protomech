@@ -145,6 +145,8 @@ def branching_fraction_chart(
         y_label=y_label,
         x_scale=plot.log_scale(P_range),
         x_axis=plot.log_scale_axis(P_range),
+        y_scale=plot.regular_scale((0, 1)),
+        y_axis=plot.regular_scale_axis((0, 1)),
         mark=plot.Mark.line,
         legend=legend,
     )
@@ -172,8 +174,6 @@ def rate_chart(
     for obj in objs:
         y_data.append(obj(x_data, P, units=units))
 
-    y_range = (np.nanmin(y_data), np.nanmax(y_data))
-
     if total:
         total_data_obj = functools.reduce(operator.add, data_objs)
         x_data_, y_data_ = total_data_obj.plot_data(T=T_range, P=P, units=units)
@@ -181,6 +181,8 @@ def rate_chart(
         y_data.insert(0, y_(x_data))
         labels.insert(0, "Total")
         colors.insert(0, ac.util.plot.Color.black)
+
+    y_range = (np.nanmin(y_data), np.nanmax(y_data))
 
     x_unit = unit_.pretty_string(units.temperature)
     x_label = f"temperature ({x_unit})"
@@ -194,7 +196,7 @@ def rate_chart(
         x_label=x_label,
         y_label=y_label,
         x_scale=plot.regular_scale(T_range),
-        x_axis=plot.regular_scale_axis(),
+        x_axis=plot.regular_scale_axis(T_range),
         y_scale=plot.log_scale(y_range),
         y_axis=plot.log_scale_axis(y_range),
         mark=plot.Mark.line,
