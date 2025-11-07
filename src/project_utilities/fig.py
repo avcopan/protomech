@@ -66,6 +66,7 @@ def rate_data(
     mech: Mechanism,
     reactants: Sequence[str],
     *,
+    colors: Sequence[str] | None = None,
     min_branch_frac: float | None = None,
 ) -> pl.DataFrame:
     """Display reactant branching fractions
@@ -99,7 +100,7 @@ def rate_data(
 
     # Add colors
     nrates = rate_df.height
-    colors = list(
+    colors = colors or list(
         itertools.islice(itertools.cycle(ac.util.plot.LINE_COLOR_CYCLE), nrates)
     )
     rate_df = rate_df.with_columns(pl.Series(RateData.color, colors, dtype=pl.String))
