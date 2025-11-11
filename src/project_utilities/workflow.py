@@ -481,8 +481,10 @@ def postprocess_rate_data(
     print("Converting ChemKin mechanism to Cantera YAML...")
     Parser.convert_mech(calc_mech_ckin, out_name=calc_mech_yaml)
 
-    print("Validating Cantera model...")
-    cantera.Solution(calc_mech_yaml)  # type: ignore
+    if validate:
+        print("Validating Cantera model...")
+        cantera.Solution(calc_mech_yaml)  # type: ignore
+
     return mech, surf0
 
 
