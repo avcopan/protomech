@@ -76,13 +76,15 @@ def expand_stereo(
     :param enant: Whether to include all enantiomers
     :param fake_sort: Whether to do a fake sort, splitting up all reactions
     """
-    gen_mech = automech.drop_duplicate_reactions(mech)
+    gen_mech = automech.without_unused_species(mech)
+    gen_mech = automech.drop_duplicate_reactions(gen_mech)
 
     # Expand and sort
     print("\nExpanding stereochemistry...")
     ste_mech, err_mech = automech.expand_stereo(
         gen_mech, enant=enant, distinct_ts=False
     )
+    ste_mech = automech.without_unused_species(ste_mech)
 
     # Display
     print("\nStereoexpansion errors:")
@@ -193,6 +195,7 @@ def prepare_calculation(
     tag: str,
     root_path: str | Path,
     fake_sort: bool = False,
+    drop_unused_species: bool = True,
 ) -> None:
     """Prepare mechanism for calculation.
 
@@ -203,6 +206,10 @@ def prepare_calculation(
     :param enant: Whether to include all enantiomers
     :param fake_sort: Whether to do a fake sort, splitting up all reactions
     """
+    if drop_unused_species:
+        gen_mech = automech.without_unused_species(gen_mech)
+        ste_mech = automech.without_unused_species(ste_mech)
+
     gen_mech = automech.drop_duplicate_reactions(gen_mech)
     ste_mech = automech.drop_duplicate_reactions(ste_mech)
     gen_mech = automech.with_sorted_reagents(gen_mech)
