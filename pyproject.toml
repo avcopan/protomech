@@ -38,7 +38,7 @@ backend = { name = "pixi-build-python", version = "*" }
 hatchling = "==1.26.3"
 
 [tool.pixi.package.run-dependencies]
-autochem = "==2025.10.2"
+autochem = "==0.2025.0"
 # SPEC0 dependencies
 numpy = ">=2.0"
 scipy = ">=1.14"
@@ -58,7 +58,7 @@ tqdm = ">=4.67.1"
 #   - Environments
 [tool.pixi.dependencies]
 protomech = { path = "." }
-autochem = "==2025.10.2"
+autochem = "==0.2025.0"
 # SPEC0 dependencies
 numpy = ">=2.0"
 scipy = ">=1.14"
