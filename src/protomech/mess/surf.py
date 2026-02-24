@@ -1681,10 +1681,11 @@ def absorb_fake_nodes(surf: Surface) -> Surface:
             # Case 1 (2 reactants, 2 products)
             if neib_key in bimol_dct:
                 other_key = bimol_dct[neib_key]
-                add_rate = surf.rates[(other_key, fake_key)].fill_nan(nan=0.0)
-                surf.rates[(other_key, bimol_key)] += add_rate
+                if (other_key, fake_key) in surf.rates:
+                    add_rate = surf.rates[(other_key, fake_key)].fill_nan(nan=0.0)
+                    surf.rates[(other_key, bimol_key)] += add_rate
             # Case 2 (1 reactant, 2 products)
-            else:
+            elif (neib_key, fake_key) in surf.rates:
                 add_rate = surf.rates[(neib_key, fake_key)].fill_nan(nan=0.0)
                 surf.rates[(neib_key, bimol_key)] += add_rate
             edge.key = frozenset({other_key, bimol_key})
