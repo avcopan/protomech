@@ -4,6 +4,7 @@ from . import io, net, reaction, species, util
 from ._mech import (
     Mechanism,
     are_equivalent,
+    classify_reactions,
     combine_all,
     combine_enantiomers,
     consumption_mechanism,
@@ -113,6 +114,7 @@ __all__ = [
     "enumerate_reactions",
     "enumerate_products",
     "replace_unstable_products",
+    "classify_reactions",
     # sorting
     "with_sort_data",
     "without_sort_data",

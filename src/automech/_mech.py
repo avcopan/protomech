@@ -1444,6 +1444,45 @@ def replace_unstable_products(
     return mech, uns_spc_mech
 
 
+def classify_reactions(
+    mech: Mechanism, col: str, class_smarts: dict[str, str]
+) -> Mechanism:
+    """Classify reactions in mechanism by SMARTS reaction templates.
+
+    Does not include stereochemistry! (Run before stereoexpansion.)
+
+    Reactants are listed by position in the SMARTS template.
+
+    :param mech: Mechanism
+    :param col: Column in which to store classification
+    :param class_smarts: Reaction class SMARTS by class name
+    :return: Mechanism with classified reactions
+    """
+    mech = mech.model_copy()
+
+    # Add reactant and product AMChIs
+    rchi_col = c_.temp()
+    pchi_col = c_.temp()
+    mech.reactions = reaction.translate_reagents(
+        mech.reactions,
+        trans=mech.species[Species.name],  # ty:ignore[invalid-argument-type]
+        trans_into=mech.species[SpeciesStereo.orig_amchi]
+        if SpeciesStereo.orig_amchi in mech.species
+        else mech.species[Species.amchi],  # ty:ignore[invalid-argument-type]
+        rct_col=rchi_col,
+        prd_col=pchi_col,
+    )
+
+    def _classify(rct_chis: Sequence[str], prd_chis: Collection[str]) -> str | None:
+        return automol.reac.enum.classify_from_amchis(class_smarts, rct_chis, prd_chis)
+
+    mech.reactions = df_.map_(
+        mech.reactions, [rchi_col, pchi_col], col, _classify, bar=True
+    )
+    mech.reactions = mech.reactions.drop([rchi_col, pchi_col])
+    return mech
+
+
 # sorting
 def with_sort_data(mech: Mechanism) -> Mechanism:
     """Add columns to sort mechanism by species and reactions.

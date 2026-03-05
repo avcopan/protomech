@@ -23,7 +23,7 @@ packages = ["src/automech", "src/protomech", "src/project_utilities"]
 # Pixi configurations
 [tool.pixi.workspace]
 channels = ["conda-forge", "auto-mech"]
-platforms = ["win-64", "linux-64", "osx-arm64", "osx-64"]
+platforms = ["linux-64", "osx-arm64", "osx-64"]
 preview = ["pixi-build"]
 
 #   - Build
@@ -38,7 +38,7 @@ backend = { name = "pixi-build-python", version = "*" }
 hatchling = "==1.26.3"
 
 [tool.pixi.package.run-dependencies]
-autochem = "==0.2025.0"
+autochem = "==0.2026.1"
 # SPEC0 dependencies
 numpy = ">=2.0"
 scipy = ">=1.14"
@@ -58,7 +58,7 @@ tqdm = ">=4.67.1"
 #   - Environments
 [tool.pixi.dependencies]
 protomech = { path = "." }
-autochem = "==0.2025.0"
+autochem = "==0.2026.1"
 # SPEC0 dependencies
 numpy = ">=2.0"
 scipy = ">=1.14"
