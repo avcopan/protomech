@@ -16,6 +16,8 @@ from ._mech import (
     drop_noncanonical_enantiomers,
     drop_reactions_by_smiles,
     drop_self_reactions,
+    drop_species,
+    drop_species_by_smiles,
     drop_unstable_product_reactions,
     enumerate_products,
     enumerate_reactions,
@@ -56,7 +58,6 @@ from ._mech import (
     with_species,
     without_reactions,
     without_sort_data,
-    without_species,
     without_unused_species,
 )
 
@@ -83,6 +84,7 @@ __all__ = [
     "drop_unstable_product_reactions",
     "drop_self_reactions",
     "drop_reactions_by_smiles",
+    "drop_species_by_smiles",
     "drop_noncanonical_enantiomers",
     # transformations
     "rename",

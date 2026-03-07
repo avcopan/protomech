@@ -459,6 +459,35 @@ def drop_self_reactions(mech: Mechanism) -> Mechanism:
     return mech
 
 
+def drop_species_by_smiles(
+    mech: Mechanism, smis: Sequence[str] = (), stereo: bool = True
+) -> Mechanism:
+    """Drop species and reactions by SMILES strings.
+
+    :param mech: Mechanism
+    :param smis: Species SMILES strings
+    :param stereo: Whether to include stereochemistry in matching
+    :return: Mechanism
+    """
+    spc_df = mech.species
+    chis = list(map(automol.smiles.amchi, smis))
+    chi_col0 = Species.amchi
+    chi_col = c_.temp()
+    if stereo:
+        spc_df = spc_df.with_columns(polars.col(chi_col0).alias(chi_col))
+    if not stereo:
+        spc_df = df_.map_(spc_df, chi_col0, chi_col, automol.amchi.without_stereo)
+        chis = list(map(automol.amchi.without_stereo, chis))
+
+    # Filter out species in the list
+    spc_names = (
+        spc_df.filter(polars.col(chi_col).is_in(chis))
+        .get_column(Species.name)
+        .to_list()
+    )
+    return drop_species(mech, spc_names)
+
+
 def drop_reactions_by_smiles(
     mech: Mechanism, rxn_smis: Sequence[str] = (), stereo: bool = True
 ) -> Mechanism:
@@ -511,35 +540,6 @@ def with_species(
     :param strict: Strictly include these species and no others?
     :return: Submechanism
     """
-    return _with_or_without_species(
-        mech=mech, spc_names=spc_names, without=False, strict=strict
-    )
-
-
-def without_species(mech: Mechanism, spc_names: Sequence[str] = ()) -> Mechanism:
-    """Extract submechanism excluding species names from list.
-
-    :param mech: Mechanism
-    :param spc_names: Names of species to be excluded
-    :return: Submechanism
-    """
-    return _with_or_without_species(mech=mech, spc_names=spc_names, without=True)
-
-
-def _with_or_without_species(
-    mech: Mechanism,
-    spc_names: Sequence[str] = (),
-    without: bool = False,
-    strict: bool = False,
-) -> Mechanism:
-    """Extract submechanism containing or excluding species names from list.
-
-    :param mech: Mechanism
-    :param spc_names: Names of species to be included or excluded
-    :param without: Extract submechanism *without* these species?
-    :param strict: Strictly include these species and no others?
-    :return: Submechanism
-    """
     mech = mech.model_copy()
 
     # Build appropriate filtering expression
@@ -547,7 +547,6 @@ def _with_or_without_species(
         polars.element().is_in(spc_names)
     )
     expr = expr.list.all() if strict else expr.list.any()
-    expr = expr.not_() if without else expr
 
     # Temporary workaround for bug https://github.com/pola-rs/polars/issues/23300:
     # Should be able to just do mech.reactions.filter(expr)
@@ -558,6 +557,29 @@ def _with_or_without_species(
         .drop(tmp_col)
     )
     return without_unused_species(mech)
+
+
+def drop_species(mech: Mechanism, spc_names: Sequence[str] = ()) -> Mechanism:
+    """Extract submechanism excluding species names from list.
+
+    :param mech: Mechanism
+    :param spc_names: Names of species to be excluded
+    :return: Submechanism
+    """
+    mech = mech.model_copy()
+
+    # Drop from species list
+    mech.species = mech.species.filter(~polars.col(Species.name).is_in(spc_names))
+
+    # Remove reactions containing the species
+    expr = (
+        polars.concat_list(Reaction.reactants, Reaction.products)
+        .list.eval(polars.element().is_in(spc_names))
+        .list.any()
+        .not_()
+    )
+    mech.reactions = mech.reactions.filter(expr)
+    return mech
 
 
 def without_reactions(mech: Mechanism) -> Mechanism:
