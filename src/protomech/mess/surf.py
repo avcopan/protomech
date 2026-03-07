@@ -256,6 +256,48 @@ def enantiomer_node_mapping(
     return enant_dct
 
 
+def enantiomer_node_pairs(
+    surf: Surface, suffix0: str = "0", suffix1: str = "1"
+) -> list[tuple[tuple[int, int], tuple[int, int]]]:
+    """Get pairs of enantiomer nodes.
+
+    :param surf: Surface
+    :param suffix0: First enantiomer suffix, defaults to "0"
+    :param suffix1: Second enantiomer suffix, defaults to "1"
+    :return: Node key pairs
+    """
+    enant_node_dct = enantiomer_node_mapping(surf, suffix0=suffix0, suffix1=suffix1)
+    node_key_pairs = []
+    for node_key1, node_key2 in enant_node_dct.items():
+        node_key1, node_key2 = sorted([node_key1, node_key2])
+        if (node_key1, node_key2) not in node_key_pairs:
+            node_key_pairs.append((node_key1, node_key2))
+    return node_key_pairs
+
+
+def contract_enantiomer_node_pairs(
+    surf: Surface, suffix0: str = "0", suffix1: str = "1"
+) -> Surface:
+    """Lump enantiomer nodes.
+
+    Ignores rates.
+
+    :param surf: Surface
+    :param suffix0: First enantiomer suffix, defaults to "0"
+    :param suffix1: Second enantiomer suffix, defaults to "1"
+    :return: Node key pairs
+    """
+    surf = surf.model_copy(deep=True)
+    node_key_pairs = enantiomer_node_pairs(surf, suffix0=suffix0, suffix1=suffix1)
+    node_map = {k: k for k in node_keys(surf)}
+    node_map.update({k1: k0 for (k0, k1) in node_key_pairs})
+    for edge in surf.edges:
+        edge.key = frozenset({node_map[k] for k in edge.key})
+    drop_keys = [k1 for (_, k1) in node_key_pairs]
+    surf = remove_nodes(surf, drop_keys)
+    return surf
+
+
 def enantiomer_rate_mapping(
     surf: Surface, *, extend: bool = False, suffix0: str = "0", suffix1: str = "1"
 ) -> dict[tuple[int, int], tuple[int, int]]:
@@ -634,7 +676,11 @@ COLOR_SEQUENCE = [
 
 
 def plot_paths(
-    surf: Surface, node_paths: list[list[int]], *, colors: Sequence[str] | None = None
+    surf: Surface,
+    node_paths: list[list[int]],
+    *,
+    colors: Sequence[str] | None = None,
+    label: bool = True,
 ) -> alt.Chart:
     """Generate feature paths from source.
 
@@ -654,7 +700,7 @@ def plot_paths(
     keys = list(map(str, range(npaths)))
     data = {c: f(x) for c, f in zip(keys, funcs, strict=True)}
     df = pl.DataFrame({"x": x, **data})
-    return (
+    chart = (
         alt.Chart(df)
         .transform_fold(fold=list(data.keys()), as_=["path", "energy"])
         .mark_line()
@@ -667,6 +713,19 @@ def plot_paths(
             ),
         )
     )
+
+    if label:
+        nodes = list(mit.unique_everseen(itertools.chain.from_iterable(node_paths)))
+        energies = list(map(energy_dct.get, nodes))
+        coords = list(map(coord_dct.get, nodes))
+        label_df = pl.DataFrame({"x": coords, "y": energies, "label": nodes})
+        chart += (
+            alt.Chart(label_df)
+            .mark_text(baseline="top", dy=10)
+            .encode(x="x:Q", y="y:Q", text="label")
+        )
+
+    return chart
 
 
 def _path_energy_function(
