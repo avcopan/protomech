@@ -4,7 +4,6 @@ import functools
 import signal
 import time
 from collections.abc import Sequence
-from numbers import Number
 from pathlib import Path
 
 import altair
@@ -14,13 +13,13 @@ from cantera.ck2yaml import Parser
 
 import automech
 from automech import Mechanism
-from automech.reaction import Reaction, ReactionRate, ReactionRateExtra, ReactionSorted
+from automech.reaction import Reaction, ReactionRateExtra, ReactionSorted
 from automech.species import Species
 from automech.util import c_
 from protomech import mess
 
 from . import p_, reactors
-from .util import previous_tag, previous_tags
+from .util import previous_tags
 
 
 # Workflows
@@ -44,24 +43,6 @@ def read_parent_mechanism(root_path: str | Path) -> Mechanism:
     return automech.io.read(mech_path)
 
 
-def previous_version_species(tag: str, root_path: str | Path) -> Mechanism:
-    """Generate a base mechanism with species from previous version.
-
-    Includes only the used species in the previous mechanism.
-
-    :param tag: Mechanism tag
-    :param root_path: Project root directory
-    :return: Mechanism with used species in previous mechanism
-    """
-    tag0 = previous_tag(tag)
-    gen_mech0 = automech.io.read(
-        p_.generated_mechanism(tag0, "json", path=p_.data(root_path))
-    )
-    spc_mech0 = automech.without_unused_species(gen_mech0)
-    spc_mech0 = automech.without_reactions(spc_mech0)
-    return spc_mech0
-
-
 def expand_stereo(
     mech: Mechanism,
     tag: str,
@@ -76,47 +57,19 @@ def expand_stereo(
     :param enant: Whether to include all enantiomers
     :param fake_sort: Whether to do a fake sort, splitting up all reactions
     """
-    gen_mech = automech.without_unused_species(mech)
-    gen_mech = automech.drop_duplicate_reactions(gen_mech)
+    gen_mech = automech.drop_duplicate_reactions(mech)
 
     # Expand and sort
     print("\nExpanding stereochemistry...")
     ste_mech, err_mech = automech.expand_stereo(
         gen_mech, enant=enant, distinct_ts=False
     )
-    ste_mech = automech.without_unused_species(ste_mech)
 
     # Display
     print("\nStereoexpansion errors:")
     automech.display_reactions(err_mech)
 
     return ste_mech, err_mech, gen_mech
-
-
-def update_previous_version(
-    gen_mech: Mechanism, ste_mech, tag: str, root_path: str | Path
-) -> Mechanism:
-    """Update previous version with new species/reactions.
-
-    :param gen_mech: Generated mechanism
-    :param ste_mech: Stereo-expanded mechanism
-    :param tag: Mechanism tag
-    :param root_path: Project root directory
-    :return: Mechanism with used species in previous mechanism
-    """
-    tag0 = previous_tag(tag)
-    gen_mech0 = automech.io.read(
-        p_.generated_mechanism(tag0, "json", path=p_.data(root_path))
-    )
-    ste_mech0 = automech.io.read(
-        p_.stereo_mechanism(tag0, "json", path=p_.data(root_path))
-    )
-    gen_mech = automech.update(gen_mech0, gen_mech)
-    ste_mech = automech.update(ste_mech0, ste_mech)
-    gen_mech = automech.drop_duplicate_reactions(gen_mech)
-    ste_mech = automech.drop_duplicate_reactions(ste_mech)
-    ste_mech = automech.without_sort_data(ste_mech)
-    return gen_mech, ste_mech
 
 
 def augment_calculation(
@@ -195,7 +148,6 @@ def prepare_calculation(
     tag: str,
     root_path: str | Path,
     fake_sort: bool = False,
-    drop_unused_species: bool = True,
 ) -> None:
     """Prepare mechanism for calculation.
 
@@ -206,10 +158,6 @@ def prepare_calculation(
     :param enant: Whether to include all enantiomers
     :param fake_sort: Whether to do a fake sort, splitting up all reactions
     """
-    if drop_unused_species:
-        gen_mech = automech.without_unused_species(gen_mech)
-        ste_mech = automech.without_unused_species(ste_mech)
-
     gen_mech = automech.drop_duplicate_reactions(gen_mech)
     ste_mech = automech.drop_duplicate_reactions(ste_mech)
     gen_mech = automech.with_sorted_reagents(gen_mech)
