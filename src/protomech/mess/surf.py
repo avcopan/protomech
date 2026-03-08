@@ -103,6 +103,20 @@ class UnimolNode(Node):
         """MESS block."""
         return f"Well  {self.label}\n{self.mess_body}"
 
+    def energy_transfer_block(self) -> str | None:
+        """Energy transfer block."""
+        a_pattern = re.compile(
+            r"(^\s*EnergyRelaxation.*?^\s*End)", flags=re.DOTALL | re.MULTILINE
+        )
+        a_match = a_pattern.search(self.mess_body)
+        z_pattern = re.compile(
+            r"(^\s*CollisionFrequency.*?^\s*End)", flags=re.DOTALL | re.MULTILINE
+        )
+        z_match = z_pattern.search(self.mess_body)
+        if a_match and z_match:
+            return f"{a_match.group()}\n{z_match.group()}"
+        return None
+
 
 class NmolNode(Node):
     type: Literal["nmol"] = "nmol"
