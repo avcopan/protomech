@@ -74,6 +74,17 @@ class Feature(pydantic.BaseModel, ABC):
             msg = f"Unable to find GroundEnergy or ZeroEnergy line in MESS body:\n{self.mess_body}"
             raise ValueError(msg)
 
+    def scale_symmetry_factor(self, scalar: float) -> None:
+        """Scale symmetry factor by a given factor."""
+        pattern = re.compile(r"(SymmetryFactor\s+)(\d+(?:\.\d+)?)")
+        match = pattern.search(self.mess_body)
+        if match is None:
+            msg = f"Unable to find symmetry factor line in MESS body:\n{self.mess_body}"
+            raise ValueError(msg)
+        factor0 = float(match.group(2))
+        factor = factor0 * scalar
+        self.mess_body = pattern.sub(rf"\g<1>{factor:.1f}", self.mess_body)
+
 
 class Node(Feature):
     key: int
@@ -85,6 +96,38 @@ class Node(Feature):
         """Names."""
         pass
 
+    @names_list.setter
+    @abstractmethod
+    def names_list(self, names: list[str]) -> None:
+        """Set names list."""
+        pass
+
+    def is_chiral(self, suffix0: str = "0", suffix1: str = "1") -> bool:
+        """Whether node is chiral, as indicated by enantiomer suffixes."""
+        suffixes = (suffix0, suffix1)
+        names = self.names_list
+        count = sum(n.endswith(suffixes) for n in names)
+        if count > 1:
+            msg = f"Multiple enantiomer suffixes {suffixes} in names {self.names_list}"
+            raise ValueError(msg)
+        return count > 0
+
+    def racemize(self, suffix0: str = "0", suffix1: str = "1") -> None:
+        """Racemize node, renaming and scaling symmetry factor.
+
+        (Equivalent to multiplying density of states by 2)
+        """
+        # 1. Check for enantiomer suffixes
+        if not self.is_chiral(suffix0=suffix0, suffix1=suffix1):
+            msg = f"Cannot racemize achiral node: {self.names_list}"
+            raise ValueError(msg)
+
+        # 2. Racemize names
+        self.names_list = racemic_names_list(self.names_list)
+
+        # 3. Scale symmetry factor
+        self.scale_symmetry_factor(0.5)
+
 
 class UnimolNode(Node):
     type: Literal["unimol"] = "unimol"
@@ -94,6 +137,11 @@ class UnimolNode(Node):
     def names_list(self) -> list[str]:
         """Label."""
         return [self.name]
+
+    @names_list.setter
+    def names_list(self, names: list[str]) -> None:
+        """Set names list."""
+        (self.name,) = names
 
     @property
     def label(self) -> str:
@@ -133,6 +181,11 @@ class NmolNode(Node):
     def names_list(self) -> list[str]:
         """Label."""
         return self.names
+
+    @names_list.setter
+    def names_list(self, names: list[str]) -> None:
+        """Set names list."""
+        self.names = [*names]
 
     def mess_block(self, label_dct: Mapping[int, str]) -> str:
         """MESS block."""
@@ -242,6 +295,31 @@ def enantiomer_names_list(
     return [enantiomer_name(n, suffix0=suffix0, suffix1=suffix1) for n in names]
 
 
+def racemic_name(name: str, suffix0: str = "0", suffix1: str = "1") -> str:
+    """Translate name into enantiomer name by suffix.
+
+    :param name: Name
+    :param suffix0: First enantiomer suffix, defaults to "0"
+    :param suffix1: Second enantiomer suffix, defaults to "1"
+    :return: Name
+    """
+    pattern = re.compile(rf"(?:{re.escape(suffix0)}|{re.escape(suffix1)})$")
+    return pattern.sub("R", name)
+
+
+def racemic_names_list(
+    names: Sequence[str], suffix0: str = "0", suffix1: str = "1"
+) -> list[str]:
+    """Translate name into enantiomer name by suffix.
+
+    :param names: Names
+    :param suffix0: First enantiomer suffix, defaults to "0"
+    :param suffix1: Second enantiomer suffix, defaults to "1"
+    :return: Name
+    """
+    return [racemic_name(n, suffix0=suffix0, suffix1=suffix1) for n in names]
+
+
 def enantiomer_node_mapping(
     surf: Surface, *, extend: bool = False, suffix0: str = "0", suffix1: str = "1"
 ) -> dict[int, int]:
@@ -269,7 +347,7 @@ def enantiomer_node_mapping(
 
 def enantiomer_node_pairs(
     surf: Surface, suffix0: str = "0", suffix1: str = "1"
-) -> list[tuple[tuple[int, int], tuple[int, int]]]:
+) -> list[tuple[int, int]]:
     """Get pairs of enantiomer nodes.
 
     :param surf: Surface
@@ -286,12 +364,8 @@ def enantiomer_node_pairs(
     return node_key_pairs
 
 
-def contract_enantiomer_node_pairs(
-    surf: Surface, suffix0: str = "0", suffix1: str = "1"
-) -> Surface:
-    """Lump enantiomer nodes.
-
-    Ignores rates.
+def racemize(surf: Surface, suffix0: str = "0", suffix1: str = "1") -> Surface:
+    """Racemize the surface.
 
     :param surf: Surface
     :param suffix0: First enantiomer suffix, defaults to "0"
@@ -299,13 +373,22 @@ def contract_enantiomer_node_pairs(
     :return: Node key pairs
     """
     surf = surf.model_copy(deep=True)
-    node_key_pairs = enantiomer_node_pairs(surf, suffix0=suffix0, suffix1=suffix1)
-    node_map = {k: k for k in node_keys(surf)}
-    node_map.update({k1: k0 for (k0, k1) in node_key_pairs})
+    node_pairs = enantiomer_node_pairs(surf, suffix0=suffix0, suffix1=suffix1)
+    enant_keys, drop_keys = zip(*node_pairs, strict=True)
+
+    # 1. Scale symmetry factors for chiral barriers
     for edge in surf.edges:
-        edge.key = frozenset({node_map[k] for k in edge.key})
-    drop_keys = [k1 for (_, k1) in node_key_pairs]
+        if edge.key & set(enant_keys):
+            edge.scale_symmetry_factor(0.5)
+
+    # 2. Remove the second node in each pair
     surf = remove_nodes(surf, drop_keys)
+
+    # 3. Update symmetry numbers for remaining nodes
+    for node in surf.nodes:
+        if node.key in enant_keys:
+            node.racemize(suffix0=suffix0, suffix1=suffix1)
+
     return surf
 
 
@@ -2128,6 +2211,16 @@ def mess_input(surf: Surface) -> str:
     assert all(isinstance(b, str) for b in node_blocks)
     assert all(isinstance(b, str) for b in edge_blocks)
     return "\n!\n".join([mess_header, *node_blocks, *edge_blocks, "End", ""])  # type: ignore
+
+
+def write_mess_input(surf: Surface, path: str | Path) -> None:
+    """Write MESS input for surface.
+
+    :param surf: Surface
+    :param path: Path
+    """
+    path = Path(path) if isinstance(path, str) else path
+    path.write_text(mess_input(surf))
 
 
 def reset_energy_transfer_header(surf: Surface) -> Surface:
