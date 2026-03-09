@@ -11,7 +11,7 @@ from autochem import unit_
 from autochem.unit_ import UNITS, Units, UnitsData
 from autochem.util import plot
 
-from automech import Mechanism, combine_enantiomers, consumption_mechanism, reaction
+from automech import Mechanism, consumption_mechanism, racemize, reaction
 from automech.util import c_
 from automech.util.pandera_ import Model
 
@@ -79,7 +79,7 @@ def rate_data(
     :param P: Pressure
     """
     mech = consumption_mechanism(mech, reactants=reactants, rev_mapping=REV_MAPPING)
-    mech = combine_enantiomers(mech, rate_cols=RATE_COLS)
+    mech = racemize(mech, rate_cols=RATE_COLS)
     rate_df = reaction.with_rate_object_columns(mech.reactions, OBJ_MAPPING)
 
     # Sort by median branching fraction

@@ -866,7 +866,7 @@ def consumption_mechanism(
     return mech.model_copy(update={"reactions": rxn_df})
 
 
-def combine_enantiomers(mech: Mechanism, rate_cols: Sequence[str] = ()) -> Mechanism:
+def racemize(mech: Mechanism, rate_cols: Sequence[str] = ()) -> Mechanism:
     """Combine enantiomers in a mechanism.
 
     :param mech: Mechanism
@@ -874,7 +874,7 @@ def combine_enantiomers(mech: Mechanism, rate_cols: Sequence[str] = ()) -> Mecha
     """
 
     def racemic_(expr: polars.Expr) -> polars.Expr:
-        return expr.str.replace(r"[01]$", "_")
+        return expr.str.replace(r"[01]$", "R")
 
     # Combine enantiomer species
     spc_df = mech.species
