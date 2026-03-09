@@ -77,6 +77,7 @@ class Feature(pydantic.BaseModel, ABC):
 
 class Node(Feature):
     key: int
+    type: Literal["unimol", "nmol"]
 
     @property
     @abstractmethod
@@ -103,19 +104,15 @@ class UnimolNode(Node):
         """MESS block."""
         return f"Well  {self.label}\n{self.mess_body}"
 
-    def energy_transfer_block(self) -> str | None:
-        """Energy transfer block."""
-        a_pattern = re.compile(
-            r"(^\s*EnergyRelaxation.*?^\s*End)", flags=re.DOTALL | re.MULTILINE
-        )
-        a_match = a_pattern.search(self.mess_body)
-        z_pattern = re.compile(
-            r"(^\s*CollisionFrequency.*?^\s*End)", flags=re.DOTALL | re.MULTILINE
-        )
-        z_match = z_pattern.search(self.mess_body)
-        if a_match and z_match:
-            return f"{a_match.group()}\n{z_match.group()}"
-        return None
+    def energy_relaxation_keyword_arguments(self) -> dict[str, float] | None:
+        """Energy relaxation keyword arguments."""
+        return energy_relaxation_keyword_arguments(self.mess_body)
+
+    def collision_frequency_keyword_arguments(
+        self,
+    ) -> dict[str, tuple[float, float]] | None:
+        """Collision frequency keyword arguments."""
+        return collision_frequency_keyword_arguments(self.mess_body)
 
 
 class NmolNode(Node):
@@ -2133,6 +2130,37 @@ def mess_input(surf: Surface) -> str:
     return "\n!\n".join([mess_header, *node_blocks, *edge_blocks, "End", ""])  # type: ignore
 
 
+def reset_energy_transfer_header(surf: Surface) -> Surface:
+    """Reset energy transfer block headers to default.
+
+    :param surf: Surface
+    :return: Surface
+    """
+    surf = surf.model_copy(deep=True)
+    wells = [n for n in surf.nodes if not n.fake and n.type == "unimol"]
+
+    alpha_counts = defaultdict(int)
+    etrans = None
+    for well in wells:
+        ret = energy_transfer_keyword_arguments(well.mess_body)
+        if ret is not None:
+            alpha_kwargs, _ = ret
+            alpha = alpha_kwargs["Factor[1/cm]"]
+            alpha_counts[alpha] += 1
+            if alpha_counts[alpha] == max(alpha_counts.values()):
+                etrans = ret
+
+    if etrans is None:
+        msg = "No well energy transfer defined."
+        raise ValueError(msg)
+
+    alpha_kwargs, z_kwargs = etrans
+    surf.mess_header = set_energy_transfer_keyword_arguments(
+        surf.mess_header, alpha_kwargs, z_kwargs
+    )
+    return surf
+
+
 # Helpers
 def node_from_mess_block_parse_data(
     block_data: inp.MessBlockParseData, key_dct: dict[str, int]
@@ -2209,3 +2237,99 @@ def edge_from_mess_block_parse_data(
         barrierless=barrierless,
         mess_body=block_data.body,
     )
+
+
+def energy_transfer_keyword_arguments(
+    mess_body: str,
+) -> tuple[dict[str, float], dict[str, tuple[float, float]]] | None:
+    """Energy transfer keyword arguments."""
+    alpha_kwargs = energy_relaxation_keyword_arguments(mess_body)
+    z_kwargs = collision_frequency_keyword_arguments(mess_body)
+
+    if alpha_kwargs is None and z_kwargs is None:
+        return None
+
+    if alpha_kwargs is None or z_kwargs is None:
+        msg = f"Inconsistent energy transfer arguments:\n{mess_body}"
+        raise ValueError(msg)
+
+    return (alpha_kwargs, z_kwargs)
+
+
+def set_energy_transfer_keyword_arguments(
+    mess_body: str,
+    alpha_kwargs: dict[str, float],
+    z_kwargs: dict[str, tuple[float, float]],
+) -> str:
+    """Set energy transfer keyword arguments."""
+    mess_body = set_energy_relaxation_block(mess_body, alpha_kwargs)
+    mess_body = set_collision_frequency_block(mess_body, z_kwargs)
+    return mess_body
+
+
+def energy_relaxation_block(mess_body: str) -> str | None:
+    """Energy relaxation block."""
+    pattern = re.compile(
+        r"(^\s*EnergyRelaxation.*?^\s*End)", flags=re.DOTALL | re.MULTILINE
+    )
+    match = pattern.search(mess_body)
+    if match:
+        return match.group()
+    return None
+
+
+def collision_frequency_block(mess_body: str) -> str | None:
+    """Collision frequency block."""
+    pattern = re.compile(
+        r"(^\s*CollisionFrequency.*?^\s*End)", flags=re.DOTALL | re.MULTILINE
+    )
+    match = pattern.search(mess_body)
+    if match:
+        return match.group()
+    return None
+
+
+def energy_relaxation_keyword_arguments(mess_body: str) -> dict[str, float] | None:
+    """Energy relaxation keyword arguments."""
+    block = energy_relaxation_block(mess_body)
+    pattern = re.compile(
+        r"^\s*(\S+)\s+([-+]?\d+\.\d+)",
+        re.MULTILINE,
+    )
+    return {k: float(v) for k, v in pattern.findall(block)} if block else None
+
+
+def collision_frequency_keyword_arguments(
+    mess_body: str,
+) -> dict[str, tuple[float, float]] | None:
+    """Collision frequency keyword arguments."""
+    block = collision_frequency_block(mess_body)
+    pattern = re.compile(
+        r"^\s*(\S+)\s+([-+]?\d+\.\d+)\s+([-+]?\d+\.\d+)",
+        re.MULTILINE,
+    )
+    return (
+        {k: (float(v1), float(v2)) for k, v1, v2 in pattern.findall(block)}
+        if block
+        else None
+    )
+
+
+def set_energy_relaxation_block(mess_body: str, kwargs: dict[str, float]) -> str:
+    """Update EnergyRelaxation numeric values inside an existing MESS body."""
+    for key, val in kwargs.items():
+        pattern = re.compile(rf"({re.escape(key)}\s+)[-+]?\d+\.\d+")
+        mess_body = pattern.sub(rf"\g<1>{val:.3f}", mess_body)
+
+    return mess_body
+
+
+def set_collision_frequency_block(
+    mess_body: str, kwargs: dict[str, tuple[float, float]]
+) -> str:
+    """Update CollisionFrequency numeric values inside an existing MESS body."""
+    for key, (val1, val2) in kwargs.items():
+        pattern = re.compile(rf"({re.escape(key)}\s+)[-+]?\d+\.\d+(\s+)[-+]?\d+\.\d+")
+        mess_body = pattern.sub(rf"\g<1>{val1:.3f}\g<2>{val2:.3f}", mess_body)
+
+    return mess_body
