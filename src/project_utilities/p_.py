@@ -34,9 +34,9 @@ def mess_initial(root_path: str | Path) -> Path:
     return data(root_path) / "mess" / "initial"
 
 
-def mess_final(root_path: str | Path) -> Path:
+def mess_final(root_path: str | Path, tag: str) -> Path:
     """Determine mess path from root."""
-    return data(root_path) / "mess" / "final"
+    return data(root_path) / "mess" / tag
 
 
 def cantera(root_path: str | Path) -> Path:
