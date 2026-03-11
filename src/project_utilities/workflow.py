@@ -303,6 +303,8 @@ def postprocess_rate_data(
     T_drop: Sequence[float] = (300, 400),
     A_fill: float = 1e-20,
     validate: bool = True,
+    racemic: bool = False,
+    min_branch_frac: float = 0.02,
 ) -> tuple[Mechanism, mess.surf.Surface]:
     """Prepare simulation from MESS output.
 
@@ -320,11 +322,13 @@ def postprocess_rate_data(
     print("Adding thermochemistry data...")
     therm_path = p_.ckin(root_path, therm_tag)
     therm_file = therm_path / "all_therm.ckin_1"
-    mech = automech.io.chemkin.update.thermo(mech, therm_file)
+    mech = automech.io.chemkin.update.thermo(
+        mech, therm_file, racemize=racemic, complete=True
+    )
 
     print("Post-processing rate data...")
     print(" - Reading in MESS input...")
-    mess_path = p_.mess_final(root_path) / stoich
+    mess_path = p_.mess_final(root_path, tag) / stoich
     mess_inp = mess_path / "mess.inp"
     surf0 = mess.surf.from_mess_input(mess_inp)
 
@@ -333,10 +337,11 @@ def postprocess_rate_data(
     surf0 = mess.surf.with_mess_output_rates(surf0, mess_out=mess_out)
 
     print(" - Integrating over fake nodes...")
-    surf0 = mess.surf.absorb_fake_nodes(surf0)
+    surf = mess.surf.absorb_fake_nodes(surf0)
 
-    print(" - Enforcing equal enantiomer rates...")
-    surf = mess.surf.enforce_equal_enantiomer_rates(surf0, tol=0.1)
+    if not racemic:
+        print(" - Enforcing equal enantiomer rates...")
+        surf = mess.surf.enforce_equal_enantiomer_rates(surf, tol=0.1)
 
     if clear_rates:
         print(f" - Clearing rates for edges {clear_rates}...")
@@ -354,7 +359,11 @@ def postprocess_rate_data(
 
     print(" - Removing irrelevant well-skipping rates...")
     irrel_skip_rate_keys = mess.surf.irrelevant_rate_keys(
-        surf, T_drop=T_drop, direct=False, min_branch_frac=0.01, pairs_only=True
+        surf,
+        T_drop=T_drop,
+        direct=False,
+        min_branch_frac=min_branch_frac,
+        pairs_only=True,
     )
     surf = mess.surf.remove_well_skipping_rates(surf, irrel_skip_rate_keys)
 
@@ -378,7 +387,7 @@ def postprocess_rate_data(
         surf, T_drop=T_drop, well_skipping=False
     )
     irrel_rate_keys = mess.surf.irrelevant_rate_keys(
-        surf, T_drop=T_drop, well_skipping=False, min_branch_frac=0.01
+        surf, T_drop=T_drop, well_skipping=False, min_branch_frac=min_branch_frac
     )
     bad_rate_keys = set(all_bad_rate_keys) - set(irrel_rate_keys)
     if validate and bad_rate_keys:
@@ -393,7 +402,7 @@ def postprocess_rate_data(
 
     print(" - Determining irrelevant pressures...")
     irrel_pressure_dct = mess.surf.irrelevant_rate_pressures(
-        surf, T_drop=T_drop, min_branch_frac=0.01
+        surf, T_drop=T_drop, min_branch_frac=min_branch_frac
     )
 
     print(" - Fitting rates...")
