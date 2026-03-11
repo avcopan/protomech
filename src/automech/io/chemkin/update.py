@@ -10,18 +10,28 @@ from ...util.io_ import TextInput
 from . import read
 
 
-def thermo(mech: Mechanism, inp_: TextInput | Sequence[TextInput]) -> Mechanism:
+def thermo(
+    mech: Mechanism,
+    inp_: TextInput | Sequence[TextInput],
+    *,
+    racemize: bool = False,
+    complete: bool = False,
+) -> Mechanism:
     """Update thermochemical data in mechanism.
 
     :param mech: Mechanism
     :param inp_: ChemKin file(s) or string(s)
+    :param racemize: If True, racemize the thermo data
+    :param complete: If True, require that all species have thermo data
     :return: Mechanism
     """
     inp_ = [inp_] if isinstance(inp_, TextInput) else inp_
 
     mech = mech.model_copy()
     for inp in inp_:
-        mech.species = read.thermo(inp, spc_df=mech.species)
+        mech.species = read.thermo(
+            inp, spc_df=mech.species, racemize=racemize, complete=complete
+        )
     return mech
 
 

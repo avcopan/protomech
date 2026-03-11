@@ -196,12 +196,19 @@ def species_names(inp: TextInput) -> list[str]:
 
 # therm
 def thermo(
-    inp: TextInput, spc_df: polars.DataFrame | None = None, out: TextOutput = None
+    inp: TextInput,
+    *,
+    spc_df: polars.DataFrame | None = None,
+    out: TextOutput = None,
+    racemize: bool = False,
+    complete: bool = False,
 ) -> polars.DataFrame | None:
     """Get thermodynamic data as a dataframe.
 
     :param inp: A CHEMKIN mechanism, as a file path or string
     :param spc_df: Optionally, join this to a species dataframe
+    :param racemize: If True, racemize the thermo data
+    :param complete: If True, require that all species have thermo data
     :return: A thermo dataframe
     """
     _, T_mid, _ = mit.padded(thermo_temperatures(inp) or [], fillvalue=None, n=3)
@@ -210,6 +217,9 @@ def thermo(
         return spc_df
 
     spcs = [ac.therm.from_chemkin_string(s, T_mid=T_mid) for s in spc_strs]
+    if racemize:
+        spcs = [s.racemize() for s in spcs]
+
     data = {
         Species.name: [s.name for s in spcs],
         SpeciesTherm.therm: [s.therm.model_dump() for s in spcs],
@@ -217,7 +227,23 @@ def thermo(
     therm_df = polars.DataFrame(data, strict=False)
     therm_df = therm_df.unique(subset=Species.name)
     if spc_df is not None:
+        # If thermo is complete, clear the column so we can check
+        if complete:
+            therm_dtype = therm_df.schema[SpeciesTherm.therm]
+            spc_df = spc_df.with_columns(
+                polars.lit(None, dtype=therm_dtype).alias(SpeciesTherm.therm)
+            )
+        # Add the new thermo values
         therm_df = m_species.left_update(spc_df, therm_df, key_col_=Species.name)
+
+    missing = (
+        therm_df.filter(polars.col(SpeciesTherm.therm).is_null())
+        .get_column(Species.name)
+        .to_list()
+    )
+    if missing and complete:
+        msg = f"Missing thermo for species: {missing}"
+        raise ValueError(msg)
 
     df_.to_csv(therm_df, out)
 
