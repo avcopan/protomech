@@ -505,10 +505,13 @@ def fake_edge_keys(surf: Surface) -> list[frozenset[int]]:
     return [e.key for e in surf.edges if e.fake]
 
 
-def fake_node_bimol_keys(surf: Surface) -> dict[int, int]:
+def fake_node_bimol_keys(
+    surf: Surface, exclude_keys: Collection[int] = ()
+) -> dict[int, int]:
     """Get mapping from fake nodes to bimolecular nodes whose complex they represent.
 
     :param surf: Surface
+    :param exclude_keys: Keys of nodes to exclude from the mapping
     :return: Mapping from fake nodes to bimolecular sources
     """
     bimol_dct = {}
@@ -516,7 +519,8 @@ def fake_node_bimol_keys(surf: Surface) -> dict[int, int]:
     for fake_edge_key in fake_edge_keys(surf):
         (fake_key,) = fake_edge_key & fake_keys
         (real_key,) = fake_edge_key - fake_keys
-        bimol_dct[fake_key] = real_key
+        if fake_key not in exclude_keys:
+            bimol_dct[fake_key] = real_key
     return bimol_dct
 
 
@@ -1810,7 +1814,7 @@ def update_branching_fractions(surf: Surface, *, in_place: bool = False) -> Surf
     return surf
 
 
-def absorb_fake_nodes(surf: Surface) -> Surface:
+def absorb_fake_nodes(surf: Surface, exclude_keys: Collection[int] = ()) -> Surface:
     """Absorb fake wells and integrate their rates.
 
     Case 1 (2 reactants, 2 products):
@@ -1826,13 +1830,14 @@ def absorb_fake_nodes(surf: Surface) -> Surface:
         Rate:       rate(1->3) += rate(1->2)
 
     :param surf: Surface
+    :param exclude_keys: Keys of nodes to exclude from absorption
     :return: Surface
     """
     surf = surf.model_copy(deep=True)
     gra = graph(surf)
 
     edge_dct = {}
-    bimol_dct = fake_node_bimol_keys(surf)
+    bimol_dct = fake_node_bimol_keys(surf, exclude_keys=exclude_keys)
     for fake_key, bimol_key in bimol_dct.items():
         neib_keys = set(gra[fake_key]) - {bimol_key}
         for neib_key in neib_keys:
