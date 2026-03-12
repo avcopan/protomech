@@ -800,7 +800,8 @@ def plot_paths(
     df = pl.DataFrame({"x": x, **data})
     chart = (
         alt.Chart(df)
-        .transform_fold(fold=list(data.keys()), as_=["path", "energy"])
+        # Reverse to put earlier keys on top
+        .transform_fold(fold=list(reversed(keys)), as_=["path", "energy"])
         .mark_line()
         .encode(
             x=alt.X("x:T", axis=None),
