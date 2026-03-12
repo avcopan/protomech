@@ -776,6 +776,7 @@ def plot_paths(
     colors: Sequence[str] | None = None,
     label: bool = True,
     stack_nodes: Collection[Collection[int]] = (),
+    stack_edges: Collection[Collection[Collection[int]]] = (),
 ) -> alt.Chart:
     """Generate feature paths from source.
 
@@ -787,7 +788,9 @@ def plot_paths(
     colors = colors or list(itertools.islice(itertools.cycle(COLOR_SEQUENCE), npaths))
     feat_paths = feature_paths_from_node_paths(surf, node_paths, barrierless=False)
     seg_feat_paths = sequence.unique_adjacent_pair_sequences(feat_paths)
-    coord_dct = feature_paths_coordinates(feat_paths, stack_nodes=stack_nodes)
+    coord_dct = feature_paths_coordinates(
+        feat_paths, stack_nodes=stack_nodes, stack_edges=stack_edges
+    )
     energy_dct = energy_dict(surf)
     funcs = [_path_energy_function(sp, coord_dct, energy_dct) for sp in seg_feat_paths]
 
@@ -941,6 +944,7 @@ def feature_path_from_node_path(
 def feature_paths_coordinates(
     feat_paths: list[list[FeatureKey]],
     stack_nodes: Collection[Collection[int]] = (),
+    stack_edges: Collection[Collection[Collection[int]]] = (),
 ) -> dict[FeatureKey, float]:
     """Determine x coordinates for plotting paths.
 
@@ -996,6 +1000,11 @@ def feature_paths_coordinates(
     for edge_key in edge_keys:
         key1, key2 = edge_key
         coord_dct[edge_key] = (coord_dct[key1] + coord_dct[key2]) / 2.0
+
+    for edge_group in stack_edges:
+        edge_keys = list(map(frozenset, edge_group))
+        min_coord = min(coord_dct[k] for k in edge_keys)
+        coord_dct.update(dict.fromkeys(edge_keys, min_coord))
 
     return coord_dct
 
