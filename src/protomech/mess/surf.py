@@ -988,15 +988,18 @@ def feature_paths_coordinates(
     # Determin node coordinates
     coord_dct = {}
     sorted_groups = digraph.topologically_sorted_node_keys(T)
-    position = 0.0
+    position = 0
     for group in sorted_groups:
         coord_dct.update(dict.fromkeys(group, position))
         position += 1
         # Add an extra space if immediately preceded by a barrier
-        for edge_key in edge_keys:
-            if edge_key & group and edge_key <= set(coord_dct.keys()):
-                coord_dct.update(dict.fromkeys(group, position))
-                position += 1
+        edges = [e for e in edge_keys if e & group and e <= set(coord_dct.keys())]
+        min_edge_dist = min(
+            (np.abs(coord_dct[k1] - coord_dct[k2]) for k1, k2 in edges), default=2
+        )
+        if min_edge_dist <= 1:
+            coord_dct.update(dict.fromkeys(group, position))
+            position += 1
 
     max_coord = np.max(list(coord_dct.values()))
     coord_dct = {k: v / max_coord for k, v in coord_dct.items()}
