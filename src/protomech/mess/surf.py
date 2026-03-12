@@ -775,6 +775,7 @@ def plot_paths(
     *,
     colors: Sequence[str] | None = None,
     label: bool = True,
+    stack_nodes: Collection[Collection[int]] = (),
 ) -> alt.Chart:
     """Generate feature paths from source.
 
@@ -786,7 +787,7 @@ def plot_paths(
     colors = colors or list(itertools.islice(itertools.cycle(COLOR_SEQUENCE), npaths))
     feat_paths = feature_paths_from_node_paths(surf, node_paths, barrierless=False)
     seg_feat_paths = sequence.unique_adjacent_pair_sequences(feat_paths)
-    coord_dct = feature_paths_coordinates(feat_paths)
+    coord_dct = feature_paths_coordinates(feat_paths, stack_nodes=stack_nodes)
     energy_dct = energy_dict(surf)
     funcs = [_path_energy_function(sp, coord_dct, energy_dct) for sp in seg_feat_paths]
 
@@ -939,6 +940,7 @@ def feature_path_from_node_path(
 
 def feature_paths_coordinates(
     feat_paths: list[list[FeatureKey]],
+    stack_nodes: Collection[Collection[int]] = (),
 ) -> dict[FeatureKey, float]:
     """Determine x coordinates for plotting paths.
 
@@ -964,36 +966,31 @@ def feature_paths_coordinates(
     # Identify root, leaf, and mid node keys
     node_paths = [[k for k in p if isinstance(k, int)] for p in feat_paths]
     T = sequence.multi_ordering_digraph(node_paths)
-    root_keys = digraph.root_node_keys(T)
-    leaf_keys = digraph.leaf_node_keys(T)
-    term_keys = root_keys + leaf_keys
-    mid_keys = [
-        k for k in digraph.topologically_sorted_node_keys(T) if k not in term_keys
-    ]
 
-    # Determine node positions
-    positions = []
-    node_keys = []
+    # Determine stack groups
+    stack_nodes = [digraph.root_node_keys(T), digraph.leaf_node_keys(T), *stack_nodes]
+    single_nodes = set(itertools.chain.from_iterable(node_paths))
+    single_nodes -= set(itertools.chain.from_iterable(stack_nodes))
+    stack_nodes.extend({k} for k in single_nodes)
+
+    # Generate quotient graph
+    T = nx.quotient_graph(T, stack_nodes)
+
+    # Determin node coordinates
+    coord_dct = {}
+    sorted_groups = digraph.topologically_sorted_node_keys(T)
     position = 0.0
-    positions.extend([position for _ in root_keys])
-    node_keys.extend(root_keys)
-    for node_key in mid_keys:
-        passed_node_keys = set([*node_keys, node_key])
-        passed_edge_keys = {k for k in edge_keys if k <= passed_node_keys}
-        if passed_edge_keys:
-            position += 2.0
-        else:
-            position += 1.0
-        positions.append(position)
-        node_keys.append(node_key)
-    leaf_edge_keys = {k for k in edge_keys if any(k_ in k for k_ in leaf_keys)}
-    position += 2.0 if leaf_edge_keys else 1.0
-    positions.extend([position for _ in leaf_keys])
-    node_keys.extend(leaf_keys)
+    for group in sorted_groups:
+        coord_dct.update(dict.fromkeys(group, position))
+        position += 1
+        # Add an extra space if immediately preceded by a barrier
+        for edge_key in edge_keys:
+            if edge_key & group and edge_key <= set(coord_dct.keys()):
+                coord_dct.update(dict.fromkeys(group, position))
+                position += 1
 
-    # Determine node coordinates
-    coords = np.divide(positions, np.max(position))
-    coord_dct = {k: c for k, c in zip(node_keys, coords, strict=True)}
+    max_coord = np.max(list(coord_dct.values()))
+    coord_dct = {k: v / max_coord for k, v in coord_dct.items()}
 
     # Determine edge coordinates
     for edge_key in edge_keys:
