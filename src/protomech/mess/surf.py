@@ -809,7 +809,7 @@ def plot_paths(
         .mark_line()
         .encode(
             x=alt.X("x:T", axis=None),
-            y="energy:Q",
+            y=alt.Y("energy:Q", title="energy (kcal/mol)"),
             color=alt.Color("path:N", legend=None).scale(
                 domain=keys,
                 range=colors,
@@ -825,10 +825,10 @@ def plot_paths(
         chart += (
             alt.Chart(label_df)
             .mark_text(baseline="top", dy=10)
-            .encode(x="x:Q", y="y:Q", text="label")
+            .encode(x=alt.X("x:Q", axis=None), y="y:Q", text="label")
         )
 
-    return chart
+    return chart.configure_axis(grid=False)
 
 
 def _path_energy_function(
