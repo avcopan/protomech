@@ -220,6 +220,9 @@ def rate_chart(
 
     y_data = np.where(np.greater(y_data, 0), y_data, np.nan)
     y_range = y_range or (np.nanmin(y_data), np.nanmax(y_data))
+    y_min, y_max = y_range
+    y_data = np.where(np.greater(y_data, y_min), y_data, np.nan)
+    y_data = np.where(np.less(y_data, y_max), y_data, np.nan)
 
     x_unit = unit_.pretty_string(units.temperature)
     x_label = f"temperature ({x_unit})"
