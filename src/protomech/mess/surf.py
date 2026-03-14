@@ -977,7 +977,10 @@ def feature_paths_coordinates(
     T = sequence.multi_ordering_digraph(node_paths)
 
     # Determine stack groups
-    stack_nodes = [digraph.root_node_keys(T), digraph.leaf_node_keys(T), *stack_nodes]
+    all_stacked_nodes = set(itertools.chain.from_iterable(stack_nodes))
+    root_nodes = set(digraph.root_node_keys(T)) - all_stacked_nodes
+    leaf_nodes = set(digraph.leaf_node_keys(T)) - all_stacked_nodes
+    stack_nodes = [root_nodes, leaf_nodes, *stack_nodes]
     single_nodes = set(itertools.chain.from_iterable(node_paths))
     single_nodes -= set(itertools.chain.from_iterable(stack_nodes))
     stack_nodes.extend({k} for k in single_nodes)
