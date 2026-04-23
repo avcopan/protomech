@@ -781,6 +781,7 @@ def plot_paths(
     label: bool = True,
     stack_nodes: Collection[Collection[int]] = (),
     stack_edges: Collection[Collection[Collection[int]]] = (),
+    energy_range: tuple[float, float] | None = None,
 ) -> alt.Chart:
     """Generate feature paths from source.
 
@@ -798,6 +799,8 @@ def plot_paths(
     energy_dct = energy_dict(surf)
     funcs = [_path_energy_function(sp, coord_dct, energy_dct) for sp in seg_feat_paths]
 
+    y_scale = alt.Undefined if energy_range is None else alt.Scale(domain=energy_range)
+
     x = np.linspace(0.0, 1.0, num=200)
     keys = list(map(str, range(npaths)))
     data = {c: f(x) for c, f in zip(keys, funcs, strict=True)}
@@ -809,7 +812,7 @@ def plot_paths(
         .mark_line()
         .encode(
             x=alt.X("x:T", axis=None),
-            y=alt.Y("energy:Q", title="energy (kcal/mol)"),
+            y=alt.Y("energy:Q", title="energy (kcal/mol)", scale=y_scale),
             color=alt.Color("path:N", legend=None).scale(
                 domain=keys,
                 range=colors,
@@ -1818,6 +1821,52 @@ def update_branching_fractions(surf: Surface, *, in_place: bool = False) -> Surf
         branch_frac = branch_frac.model_copy(update={"k_data": k_data})
         surf.branching_fractions[rate_key] = branch_frac
     return surf
+
+
+def merge_nodes(surf: Surface, keys: Collection[int]) -> Surface:
+    """Merge two nodes.
+
+    :param surf: Surface
+    :param keys: Keys of nodes to merge
+    :return: Surface with merged nodes
+    """
+    surf = surf.model_copy(deep=True)
+    gra = graph(surf)
+    other_keys = sorted(keys)
+    first_key = other_keys.pop(0)
+    first_node = node_object(surf, first_key)
+
+    # 1. Determine the lowest energy and update the first node with it
+    lowest_energy = min(node_object(surf, key).energy for key in keys)
+    first_node.energy = lowest_energy
+
+    # 2. Check for overlapping edges and choose the lowest energy for each
+    # (Remove all redundant edges.)
+    for neib_key in gra[first_key]:
+        first_edge_key = frozenset({first_key, neib_key})
+        first_edge = edge_object(surf, first_edge_key)
+        other_edge_keys = [
+            frozenset({k, neib_key}) for k in other_keys if neib_key in gra[k]
+        ]
+        edge_keys = [first_edge_key, *other_edge_keys]
+
+        # a. Set first edge energy to miniminum
+        lowest_energy = min(edge_object(surf, k).energy for k in edge_keys)
+        first_edge.energy = lowest_energy
+
+        # b. Remove other edges
+        for other_edge_key in other_edge_keys:
+            gra.remove_edge(*other_edge_key)
+
+    # 3. Update remaining (non-overlapping) edges to point to the first node
+    for other_key in other_keys:
+        for neib_key in gra[other_key]:
+            other_edge_key = frozenset({other_key, neib_key})
+            edge = edge_object(surf, other_edge_key)
+            edge.key = frozenset({first_key, neib_key})
+
+    # 4. Remove other nodes
+    return remove_nodes(surf, keys=other_keys)
 
 
 def absorb_fake_nodes(surf: Surface, exclude_keys: Collection[int] = ()) -> Surface:
