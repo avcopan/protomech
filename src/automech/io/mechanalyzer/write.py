@@ -44,17 +44,23 @@ def mechanism(
         dictionary and species dataframe?
     :return: MechaAnalyzer reaction dictionary (or CHEMKIN string) and species dataframe
     """
-    data_col_groups = ()
-    if pandera_.has_columns(ReactionSorted, mech.reactions):  # type: ignore
-        data_col_groups = [pandera_.columns(ReactionSorted)]  # type: ignore
+    comment_col = "comment"
+    sort_cols = None
+    if pandera_.has_columns(ReactionSorted, mech.reactions):  # ty:ignore[invalid-argument-type]
+        sort_cols = pandera_.columns(ReactionSorted)  # ty:ignore[invalid-argument-type]
+
+        mech.reactions = mech.reactions.with_columns(
+            polars.struct(sort_cols)
+            .map_elements(encoder.mechanalyzer)
+            .alias(comment_col)
+        )
 
     mech_str = chemkin_write.reactions_block(
         mech,
         fill_rates=fill_rates,
-        comment_sep="#",
-        data_col_groups=data_col_groups,
-        sort_data=True,
-        encoder=encoder.mechanalyzer,
+        comment_sep="!",
+        comment_col=comment_col,
+        sort_cols=sort_cols,
     )
     if rxn_out is not None:
         rxn_out: Path = Path(rxn_out)

@@ -27,13 +27,15 @@ REACTION_BLOCK_HEADER = f"   {ENERGY_PER_SUBSTANCE}   {SUBSTANCE}"
 
 def mechanism(
     mech: Mechanism,
+    *,
     out: str | Path | None = None,
     fill_rates: bool = False,
     elem: bool = True,
     therm: bool = True,
-    rxn_data_col_groups: Sequence[Sequence[str]] = (),
-    sort_data: bool = False,
-    encoder: Callable[[Any], str] = encoder.simple,
+    comment_sep: str = "!",
+    comment_col: str | None = "comment",
+    therm_sort_cols: Sequence[str] | None = None,
+    rxn_sort_cols: Sequence[str] | None = None,
 ) -> str:
     """Write a mechanism to CHEMKIN format.
 
@@ -42,22 +44,31 @@ def mechanism(
     :param fill_rates: Whether to fill missing rates with dummy values
     :param elem: Whether to include elements block
     :param therm: Whether to include thermo block
+    :param rxn_sort_cols: Columns to sort reactions by
     :return: The CHEMKIN mechanism as a string
     """
     spc_block = species_block(mech)
     rxn_block = reactions_block(
         mech,
         fill_rates=fill_rates,
-        data_col_groups=rxn_data_col_groups,
-        sort_data=sort_data,
-        encoder=encoder,
+        comment_col=comment_col,
+        comment_sep=comment_sep,
+        sort_cols=rxn_sort_cols,
     )
     blocks = [spc_block, rxn_block]
     if elem:
         blocks.insert(0, elements_block(mech))
 
     if therm:
-        blocks.insert(-2, thermo_block(mech))
+        blocks.insert(
+            -2,
+            thermo_block(
+                mech,
+                comment_col=comment_col,
+                comment_sep=comment_sep,
+                sort_cols=therm_sort_cols,
+            ),
+        )
 
     mech_str = "\n\n\n".join(b for b in blocks if b is not None)
     if out is not None:
@@ -99,14 +110,25 @@ def species_block(mech: Mechanism) -> str:
     return block(KeyWord.SPECIES, spc_strs)
 
 
-def thermo_block(mech: Mechanism) -> str:
+def thermo_block(
+    mech: Mechanism,
+    *,
+    comment_sep: str = "!",
+    comment_col: str | None = "comment",
+    sort_cols: Sequence[str] | None = None,
+) -> str:
     """Write the thermo block to a string.
 
     :param mech: A mechanism
     :return: The thermo block string
     """
-    if (SpeciesTherm.therm not in mech.species) or mech.species.is_empty():
-        return None
+    if SpeciesTherm.therm not in mech.species:  # ty:ignore[unsupported-operator]
+        msg = f"Missing thermo data for species: {mech.species.columns}"
+        raise ValueError(msg)
+
+    if mech.species.is_empty():
+        # Write the block
+        return block(KeyWord.THERM, [], header="")
 
     spc_df = mech.species
 
@@ -138,6 +160,19 @@ def thermo_block(mech: Mechanism) -> str:
     T_max = spc_df.get_column(tmax_col).min()
     header = f"ALL\n    {T_min:.3f}  {T_mid:.3f}  {T_max:.3f}"
 
+    # Add comments
+    if comment_col is not None and comment_col in spc_df:
+        margin = 88
+
+        comment_expr = text_with_comments_expr(
+            ck_col, comment_col, sep=comment_sep, margin=margin
+        )
+        spc_df = spc_df.with_columns(comment_expr.alias(ck_col))
+
+    # Sort
+    if sort_cols is not None:
+        spc_df = spc_df.sort(list(sort_cols))
+
     # Generate the thermo strings
     therm_strs = spc_df.select(ck_col).to_series()
 
@@ -147,20 +182,21 @@ def thermo_block(mech: Mechanism) -> str:
 
 def reactions_block(
     mech: Mechanism,
+    *,
     frame: bool = True,
     fill_rates: bool = False,
     comment_sep: str = "!",
-    data_col_groups: Sequence[Sequence[str]] = (),
-    sort_data: bool = False,
-    encoder: Callable[[Any], str] = encoder.simple,
+    comment_col: str | None = "comment",
+    sort_cols: Sequence[str] | None = None,
 ) -> str:
     """Write the reactions block to a string.
 
     :param mech: A mechanism
     :param frame: Whether to frame the block with its header and footer
     :param fill_rates: Whether to fill missing rates with dummy values
-    :param col_groups: Column groups to sort by
+    :param sort_cols: Columns to sort by
     :param comment_sep: Comment separator
+    :param comment_col: The column containing comments
     :return: The reactions block string
     """
     rxn_df = mech.reactions
@@ -208,45 +244,23 @@ def reactions_block(
         .otherwise(polars.col(ck_col))
     )
 
-    if data_col_groups:
-        # Add comments column
-        comment_col = c_.temp()
-        rxn_df = rxn_df.with_columns(
-            polars.concat_str(
-                [
-                    polars.struct(cols).map_elements(
-                        encoder, return_dtype=polars.String
-                    )
-                    for cols in data_col_groups
-                ],
-                separator="\n",
-            ).alias(comment_col)
-        )
-
-        # Determine Chemkin entry column width
-        # (More complex expression required to handle multilines strings)
-        ck_width = (
+    if comment_col is not None and comment_col in rxn_df:
+        content_width = (
             rxn_df.get_column(ck_col).str.split("\n").list.get(0).str.len_chars().max()
         )
-        assert isinstance(ck_width, int), f"ck_width = {ck_width}"
-        ck_width += 8
+        if not isinstance(content_width, int):
+            msg = f"{content_width = }"
+            raise ValueError(msg)
 
-        # Join comment column with
-        rxn_df = rxn_df.with_columns(
-            polars.concat_arr([ck_col, comment_col])
-            .map_elements(
-                lambda x: text_with_comments(
-                    x[0], x[1], sep=comment_sep, text_width=ck_width
-                ),
-                return_dtype=polars.String,
-            )
-            .alias(ck_col)
+        margin = content_width + 8
+
+        comment_expr = text_with_comments_expr(
+            ck_col, comment_col, sep=comment_sep, margin=margin
         )
+        rxn_df = rxn_df.with_columns(comment_expr.alias(ck_col))
 
-        # Sort by column values
-        if sort_data:
-            data_col_groups = list(itertools.chain.from_iterable(data_col_groups))
-            rxn_df = rxn_df.sort(data_col_groups, nulls_last=True)
+    if sort_cols is not None:
+        rxn_df = rxn_df.sort(list(sort_cols))
 
     rxn_strs = rxn_df.get_column(ck_col).to_list()
     return block(KeyWord.REACTIONS, rxn_strs, header=REACTION_BLOCK_HEADER, frame=frame)
@@ -273,8 +287,18 @@ def block(key, val, header: str | None = None, frame: bool = True) -> str:
     return "\n\n".join(components)
 
 
+def text_with_comments_expr(
+    text_col: str, comment_col: str, sep: str = "!", margin: int | None = None
+) -> polars.Expr:
+    """Polars expression to write text with comments to a combined string."""
+    return polars.concat_arr([text_col, comment_col]).map_elements(
+        lambda x: text_with_comments(x[0], x[1], sep=sep, margin=margin),
+        return_dtype=polars.String,
+    )
+
+
 def text_with_comments(
-    text: str, comments: str, sep: str = "!", text_width: int | None = None
+    text: str, comments: str, sep: str = "!", margin: int | None = None
 ) -> str:
     """Write text with comments to a combined string.
 
@@ -284,10 +308,10 @@ def text_with_comments(
     """
     text_lines = text.splitlines()
     comm_lines = comments.strip().splitlines()
-    text_width = max(map(len, text_lines)) + 2 if text_width is None else text_width
+    margin = max(map(len, text_lines)) + 2 if margin is None else margin
 
     lines = [
-        f"{t:<{text_width}} {sep} {c}" if c else t
+        f"{t:<{margin}} {sep} {c}" if c else t
         for t, c in itertools.zip_longest(text_lines, comm_lines, fillvalue="")
     ]
     return "\n".join(lines)

@@ -26,14 +26,14 @@ def check_counts(mech, ref_nrxns, ref_nspcs):
 
 
 @pytest.mark.parametrize(
-    "mech_file_name, nrxns, nspcs, roundtrip",
+    ("mech_file_name", "therm", "nrxns", "nspcs", "roundtrip"),
     [
-        ("butane.dat", 101, 76, False),
-        ("ethylene.dat", 26, 31, False),
-        ("webb_sample.inp", 12, 18, True),
+        ("butane.dat", False, 101, 76, False),
+        ("ethylene.dat", False, 26, 31, False),
+        ("webb_sample.inp", False, 12, 18, True),
     ],
 )
-def test__chemkin(mech_file_name, nrxns, nspcs, roundtrip):
+def test__chemkin(mech_file_name, therm, nrxns, nspcs, roundtrip):
     """Test automech.io.chemkin."""
     # Read
     mech_path = DATA_PATH / mech_file_name
@@ -43,7 +43,7 @@ def test__chemkin(mech_file_name, nrxns, nspcs, roundtrip):
 
     # Write
     out = TEMP_PATH / mech_file_name
-    mech_str = automech.io.chemkin.write.mechanism(mech0, out=out)
+    mech_str = automech.io.chemkin.write.mechanism(mech0, out=out, therm=therm)
     print(mech_str)
     #   - Check the direct output
     mech = automech.io.chemkin.read.mechanism(mech_str)
