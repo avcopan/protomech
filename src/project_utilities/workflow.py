@@ -452,25 +452,34 @@ def postprocess_rate_data(
     return mech, surf0
 
 
-def prepare_simulation(tag: str, stoichs: Sequence[str], root_path: str | Path) -> None:
+def prepare_simulation(
+    tag: str, root_path: str | Path, stoichs: Sequence[str] | None = None
+) -> None:
     """Read calculation results and prepare simulation.
 
     :param tag: Mechanism tag
     :param root_path: Project root directory
+    :param stoichs: Sequence of stoichiometries
     """
-    print("Reading mechanisms...")
+    if stoichs is None:
+        mech_json = p_.calculated_mechanism(tag, "json", path=p_.data(root_path))
+        mech = automech.io.read(mech_json)
+    else:
+        print(f"Reading in calculated mechanisms from stoichiometries {stoichs}...")
+        mech_jsons = [
+            p_.calculated_pes_mechanism(tag, s, "json", path=p_.data(root_path))
+            for s in stoichs
+        ]
+        print(f" - Calculated: {mech_jsons}")
+        mechs = list(map(automech.io.read, mech_jsons))
+        mech = automech.combine_all(mechs)
+
+    print("Reading parent mechanism...")
     par_mech_json = p_.parent_mechanism("json", path=p_.data(root_path))
-    mech_jsons = [
-        p_.calculated_pes_mechanism(tag, s, "json", path=p_.data(root_path))
-        for s in stoichs
-    ]
     print(f" - Parent: {par_mech_json}")
     par_mech = automech.io.read(par_mech_json)
     par_index_col = "parent_index"
     par_mech = automech.with_index(par_mech, col=par_index_col, offset=1)
-    print(f" - Calculated: {mech_jsons}")
-    mechs = list(map(automech.io.read, mech_jsons))
-    mech = automech.combine_all(mechs)
 
     print("Expanding and updating parent...")
     full_control_mech = automech.expand_parent_stereo(par_mech, mech)
