@@ -1,7 +1,7 @@
 """Functions acting on species DataFrames."""
 
 import functools
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from typing import Annotated
 
 import autochem as ac
@@ -445,6 +445,51 @@ def expand_stereo(
     )
     spc_df = spc_df if enant else spc_df.filter(polars.col(SpeciesStereo.canon))
     return validate(spc_df, model_=[Species, SpeciesStereo])
+
+
+# Display
+def display(
+    spc_df: polars.DataFrame,
+    ids: Collection[str | int] | None = None,
+    spc_vals_: Sequence[str] | None = None,
+    spc_key_: str | Sequence[str] = Species.name,
+    stereo: bool = True,
+    keys: tuple[str, ...] = (
+        Species.name,
+        Species.smiles,
+    ),
+):
+    """Display species in mechanism.
+
+    :param spc_df: Species DataFrame
+    :param vals_: Species column value(s) list for selection
+    :param spc_key_: Species column key(s) for selection
+    :param stereo: Include stereochemistry in species drawings?, defaults to True
+    :param keys: Keys of extra columns to print
+    """
+    # Select the requested ids, if any
+    if ids is not None:
+        ids = list(map(int, ids))
+        tmp_col = c_.temp()
+        spc_df = spc_df.with_row_index(name=tmp_col, offset=1).filter(
+            polars.col(tmp_col).is_in(ids)
+        )
+
+    if spc_vals_ is not None:
+        spc_df = filter(spc_df, vals_=spc_vals_, col_=spc_key_)
+        id_ = [spc_key_] if isinstance(spc_key_, str) else spc_key_
+        keys = [*id_, *(k for k in keys if k not in id_)]
+
+    def _display_species(chi, *vals):
+        """Display a species."""
+        # Print requested information
+        for key, val in zip(keys, vals, strict=True):
+            print(f"{key}: {val}")
+
+        automol.amchi.display(chi, stereo=stereo)
+
+    # Display requested reactions
+    df_.map_(spc_df, (Species.amchi, *keys), None, _display_species)
 
 
 # Bootstrapping function

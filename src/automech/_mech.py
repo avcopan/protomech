@@ -1691,32 +1691,14 @@ def display_species(
     :param stereo: Include stereochemistry in species drawings?, defaults to True
     :param keys: Keys of extra columns to print
     """
-    # Read in mechanism data
-    spc_df = mech.species
-
-    # Select the requested ids, if any
-    if ids is not None:
-        ids = list(map(int, ids))
-        tmp_col = c_.temp()
-        spc_df = spc_df.with_row_index(name=tmp_col, offset=1).filter(
-            polars.col(tmp_col).is_in(ids)
-        )
-
-    if spc_vals_ is not None:
-        spc_df = species.filter(spc_df, vals_=spc_vals_, col_=spc_key_)
-        id_ = [spc_key_] if isinstance(spc_key_, str) else spc_key_
-        keys = [*id_, *(k for k in keys if k not in id_)]
-
-    def _display_species(chi, *vals):
-        """Display a species."""
-        # Print requested information
-        for key, val in zip(keys, vals, strict=True):
-            print(f"{key}: {val}")
-
-        automol.amchi.display(chi, stereo=stereo)
-
-    # Display requested reactions
-    df_.map_(spc_df, (Species.amchi, *keys), None, _display_species)
+    species.display(
+        spc_df=mech.species,
+        ids=ids,
+        spc_vals_=spc_vals_,
+        spc_key_=spc_key_,
+        stereo=stereo,
+        keys=keys,
+    )
 
 
 Number: TypeAlias = float | int
