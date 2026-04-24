@@ -453,7 +453,10 @@ def postprocess_rate_data(
 
 
 def prepare_simulation(
-    tag: str, root_path: str | Path, stoichs: Sequence[str] | None = None
+    tag: str,
+    root_path: str | Path,
+    stoichs: Sequence[str] | None = None,
+    thermo_only: bool = False,
 ) -> None:
     """Read calculation results and prepare simulation.
 
@@ -474,6 +477,13 @@ def prepare_simulation(
         mechs = list(map(automech.io.read, mech_jsons))
         mech = automech.combine_all(mechs)
 
+    if thermo_only:
+        print("Removing calculated rates for thermo-only update...")
+        mech = automech.without_reactions(mech)
+
+        print("Updating tag for thermo-only update...")
+        tag = f"{tag}_thermo_only"
+
     print("Reading parent mechanism...")
     par_mech_json = p_.parent_mechanism("json", path=p_.data(root_path))
     print(f" - Parent: {par_mech_json}")
@@ -488,12 +498,16 @@ def prepare_simulation(
     )
 
     print("Expanding and updating parent...")
-    rxn_data_cols: list[str] = [
-        par_index_col,
-        ReactionRateExtra.well_skipping,
-        ReactionRateExtra.cleared,
-        ReactionRateExtra.partially_cleared,
-    ]  # ty:ignore[invalid-assignment]
+    if thermo_only:
+        rxn_data_cols = [par_index_col]
+    else:
+        rxn_data_cols: list[str] = [
+            par_index_col,
+            ReactionRateExtra.well_skipping,
+            ReactionRateExtra.cleared,
+            ReactionRateExtra.partially_cleared,
+        ]  # ty:ignore[invalid-assignment]
+
     full_control_mech = automech.expand_parent_stereo(par_mech, mech)
     full_calc_mech = automech.update(full_control_mech, mech)
     full_calc_mech = automech.with_comments(
