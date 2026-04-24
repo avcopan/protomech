@@ -1,4 +1,7 @@
+from collections.abc import Callable
 from typing import Any
+
+Encoder = Callable[[dict[Any, Any]], str]
 
 
 def simple(data: dict[Any, Any]) -> str:

@@ -433,14 +433,14 @@ def postprocess_rate_data(
         tag, stoich, "dat", path=p_.chemkin(root_path)
     )
     print(f" - Calculated: {calc_mech_ckin}")
-    automech.io.chemkin.write.mechanism(calc_mech, calc_mech_ckin)
+    automech.io.chemkin.write.mechanism(calc_mech, out=calc_mech_ckin)
 
     print("Writing mechanisms to Cantera...")
     calc_mech_yaml = p_.calculated_pes_mechanism(
         tag, stoich, "yaml", path=p_.cantera(root_path)
     )
     print(f" - Calculated: {calc_mech_yaml}")
-    automech.io.chemkin.write.mechanism(calc_mech, calc_mech_yaml)
+    automech.io.chemkin.write.mechanism(calc_mech, out=calc_mech_yaml)
 
     print("Converting ChemKin mechanism to Cantera YAML...")
     Parser.convert_mech(calc_mech_ckin, out_name=calc_mech_yaml)
@@ -478,12 +478,30 @@ def prepare_simulation(
     par_mech_json = p_.parent_mechanism("json", path=p_.data(root_path))
     print(f" - Parent: {par_mech_json}")
     par_mech = automech.io.read(par_mech_json)
-    par_index_col = "parent_index"
+    par_index_col = "Original Chemkin index"
     par_mech = automech.with_index(par_mech, col=par_index_col, offset=1)
 
+    print("Adding comments...")
+    comment_col = "comment"
+    mech = automech.with_comments(
+        mech, col=comment_col, header="Calculated in this work"
+    )
+
     print("Expanding and updating parent...")
+    rxn_data_cols: list[str] = [
+        par_index_col,
+        ReactionRateExtra.well_skipping,
+        ReactionRateExtra.cleared,
+        ReactionRateExtra.partially_cleared,
+    ]  # ty:ignore[invalid-assignment]
     full_control_mech = automech.expand_parent_stereo(par_mech, mech)
     full_calc_mech = automech.update(full_control_mech, mech)
+    full_calc_mech = automech.with_comments(
+        full_calc_mech, col=comment_col, rxn_data_cols=rxn_data_cols, update=True
+    )
+    full_control_mech = automech.with_comments(
+        full_control_mech, col=comment_col, rxn_data_cols=[par_index_col]
+    )
 
     print("Writing mechanism to JSON...")
     full_control_json = p_.full_control_mechanism(tag, "json", path=p_.data(root_path))
@@ -504,35 +522,32 @@ def prepare_simulation(
         tag, "dat", path=p_.chemkin(root_path)
     )
     calc_ckin = p_.calculated_mechanism(tag, "dat", path=p_.chemkin(root_path))
-    sort_cols = [ReactionSorted.pes, ReactionSorted.subpes, ReactionSorted.channel]
-    info_cols = [
+    sort_cols = [
         ReactionRateExtra.well_skipping,
-        ReactionRateExtra.cleared,
-        ReactionRateExtra.partially_cleared,
+        ReactionSorted.pes,
+        ReactionSorted.subpes,
+        ReactionSorted.channel,
     ]
-    full_control_col_groups = ([par_index_col],)
-    calc_col_groups = (sort_cols, info_cols)
-    full_calc_col_groups = (*full_control_col_groups, *calc_col_groups)
     print(f" - Full control: {full_control_ckin}")
     automech.io.chemkin.write.mechanism(
         full_control_mech,
         out=full_control_ckin,
-        rxn_data_col_groups=full_control_col_groups,
-        sort_data=True,
+        comment_col=comment_col,
+        rxn_sort_cols=[par_index_col],  # ty:ignore[invalid-argument-type]
     )
     print(f" - Full calculated: {full_calc_ckin}")
     automech.io.chemkin.write.mechanism(
         full_calc_mech,
         out=full_calc_ckin,
-        rxn_data_col_groups=full_calc_col_groups,  # type: ignore
-        sort_data=True,
+        comment_col=comment_col,
+        rxn_sort_cols=[par_index_col, *sort_cols],  # ty:ignore[invalid-argument-type]
     )
     print(f" - Calculated: {calc_ckin}")
     automech.io.chemkin.write.mechanism(
         mech,
         out=calc_ckin,
-        rxn_data_col_groups=calc_col_groups,  # type: ignore
-        sort_data=True,
+        comment_col=comment_col,
+        rxn_sort_cols=sort_cols,  # ty:ignore[invalid-argument-type]
     )
 
     print("Converting ChemKin mechanism to Cantera YAML...")
@@ -546,8 +561,8 @@ def prepare_simulation(
     Parser.convert_mech(full_calc_ckin, out_name=full_calc_yaml)
 
     print("Validating Cantera model...")
-    cantera.Solution(full_control_yaml)  # type: ignore
-    cantera.Solution(full_calc_yaml)  # type: ignore
+    cantera.Solution(full_control_yaml)
+    cantera.Solution(full_calc_yaml)
 
 
 def plot_rates(tag: str, root_path: str | Path) -> None:

@@ -7,12 +7,11 @@ import automol
 import pandas
 import polars
 
-from ..._mech import Mechanism
+from ..._mech import Mechanism, with_comments
 from ...reaction import ReactionSorted
 from ...species import Species
-from ...util import df_, pandera_
+from ...util import df_, encoder, pandera_
 from ..chemkin import write as chemkin_write
-from ..data import encoder
 
 
 class MASpecies(pandera_.Model):
@@ -44,15 +43,15 @@ def mechanism(
         dictionary and species dataframe?
     :return: MechaAnalyzer reaction dictionary (or CHEMKIN string) and species dataframe
     """
-    comment_col = "comment"
-    sort_cols = None
+    sort_cols = comment_col = None
     if pandera_.has_columns(ReactionSorted, mech.reactions):  # ty:ignore[invalid-argument-type]
+        comment_col = "comment"
         sort_cols = pandera_.columns(ReactionSorted)  # ty:ignore[invalid-argument-type]
-
-        mech.reactions = mech.reactions.with_columns(
-            polars.struct(sort_cols)
-            .map_elements(encoder.mechanalyzer)
-            .alias(comment_col)
+        mech = with_comments(
+            mech,
+            col=comment_col,
+            rxn_data_cols=sort_cols,
+            data_encoder=encoder.mechanalyzer,
         )
 
     mech_str = chemkin_write.reactions_block(

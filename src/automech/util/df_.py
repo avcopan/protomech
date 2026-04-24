@@ -8,7 +8,8 @@ import polars.dataframe
 from polars import selectors as s_
 from tqdm.auto import tqdm
 
-from . import c_
+from . import c_, encoder
+from .encoder import Encoder
 from .io_ import TextOutput
 
 Key = str
@@ -106,6 +107,43 @@ def with_index(
     :return: _description_
     """
     return df.with_row_index(name=col, offset=offset)
+
+
+def with_comments(  # noqa: PLR0913
+    df: polars.DataFrame,
+    col: str = "comment",
+    *,
+    header: str | None = None,
+    data_cols: Sequence[str] | None = None,
+    data_encoder: Encoder = encoder.simple,
+    update: bool = False,
+) -> polars.DataFrame:
+    """Add comment column to DataFrame.
+
+    :param df: DataFrame
+    :param col: Column
+    :return: DataFrame with comment column
+    """
+    src_exprs = []
+    if update:
+        if col not in df:
+            msg = f"Cannot update comment column {col} that doesn't exist"
+            raise ValueError(msg)
+
+        src_exprs.append(polars.col(col))
+
+    if header is not None:
+        src_exprs.append(polars.lit(header))
+
+    if data_cols is not None:
+        src_exprs.append(polars.struct(data_cols).map_elements(data_encoder))
+
+    if not src_exprs:
+        return df
+
+    return df.with_columns(
+        polars.concat_str(src_exprs, separator="\n", ignore_nulls=True).alias(col)
+    )
 
 
 def update(

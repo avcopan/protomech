@@ -2,9 +2,8 @@
 
 import functools
 import itertools
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
 
 import automol
 import polars
@@ -14,10 +13,8 @@ from autochem.util import chemkin
 
 from ... import reaction, species
 from ..._mech import Mechanism
-from ...reaction import ReactionSorted
 from ...species import Species, SpeciesTherm
-from ...util import c_, pandera_
-from ..data import encoder
+from ...util import c_
 from .read import KeyWord
 
 ENERGY_PER_SUBSTANCE = unit_.string(UNITS.energy_per_substance).upper().replace(" ", "")
@@ -162,16 +159,12 @@ def thermo_block(
 
     # Add comments
     if comment_col is not None and comment_col in spc_df:
-        margin = 88
-
-        comment_expr = text_with_comments_expr(
-            ck_col, comment_col, sep=comment_sep, margin=margin
-        )
+        comment_expr = text_with_comments_expr(ck_col, comment_col, sep=comment_sep)
         spc_df = spc_df.with_columns(comment_expr.alias(ck_col))
 
     # Sort
     if sort_cols is not None:
-        spc_df = spc_df.sort(list(sort_cols))
+        spc_df = spc_df.sort(list(sort_cols), nulls_last=True)
 
     # Generate the thermo strings
     therm_strs = spc_df.select(ck_col).to_series()
@@ -245,22 +238,11 @@ def reactions_block(
     )
 
     if comment_col is not None and comment_col in rxn_df:
-        content_width = (
-            rxn_df.get_column(ck_col).str.split("\n").list.get(0).str.len_chars().max()
-        )
-        if not isinstance(content_width, int):
-            msg = f"{content_width = }"
-            raise ValueError(msg)
-
-        margin = content_width + 8
-
-        comment_expr = text_with_comments_expr(
-            ck_col, comment_col, sep=comment_sep, margin=margin
-        )
+        comment_expr = text_with_comments_expr(ck_col, comment_col, sep=comment_sep)
         rxn_df = rxn_df.with_columns(comment_expr.alias(ck_col))
 
     if sort_cols is not None:
-        rxn_df = rxn_df.sort(list(sort_cols))
+        rxn_df = rxn_df.sort(list(sort_cols), nulls_last=True)
 
     rxn_strs = rxn_df.get_column(ck_col).to_list()
     return block(KeyWord.REACTIONS, rxn_strs, header=REACTION_BLOCK_HEADER, frame=frame)
@@ -288,30 +270,17 @@ def block(key, val, header: str | None = None, frame: bool = True) -> str:
 
 
 def text_with_comments_expr(
-    text_col: str, comment_col: str, sep: str = "!", margin: int | None = None
+    text_col: str, comment_col: str, sep: str = "!"
 ) -> polars.Expr:
     """Polars expression to write text with comments to a combined string."""
-    return polars.concat_arr([text_col, comment_col]).map_elements(
-        lambda x: text_with_comments(x[0], x[1], sep=sep, margin=margin),
-        return_dtype=polars.String,
+    comment_expr = (
+        polars.when(
+            polars.col(comment_col).is_not_null()
+            & (polars.col(comment_col).str.len_chars() > 0)
+        )
+        .then(polars.col(comment_col).str.replace_all(r"(?m)^", f"{sep} "))
+        .otherwise(None)
     )
-
-
-def text_with_comments(
-    text: str, comments: str, sep: str = "!", margin: int | None = None
-) -> str:
-    """Write text with comments to a combined string.
-
-    :param text: Text
-    :param comments: Comments
-    :return: Combined text and comments
-    """
-    text_lines = text.splitlines()
-    comm_lines = comments.strip().splitlines()
-    margin = max(map(len, text_lines)) + 2 if margin is None else margin
-
-    lines = [
-        f"{t:<{margin}} {sep} {c}" if c else t
-        for t, c in itertools.zip_longest(text_lines, comm_lines, fillvalue="")
-    ]
-    return "\n".join(lines)
+    return polars.concat_str(
+        polars.lit(""), comment_expr, text_col, separator="\n", ignore_nulls=True
+    )

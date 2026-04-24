@@ -28,7 +28,7 @@ from .reaction import (
     ReactionStereo,
 )
 from .species import Species, SpeciesDataFrame_, SpeciesStereo
-from .util import c_, df_, pandera_
+from .util import Encoder, c_, df_, encoder, pandera_
 
 
 class Mechanism(pydantic.BaseModel):
@@ -615,6 +615,43 @@ def with_index(mech: Mechanism, col: str, offset: int = 0) -> Mechanism:
     spc_df = df_.with_index(mech.species, col=col, offset=offset)
     rxn_df = df_.with_index(mech.reactions, col=col, offset=offset)
     return mech.model_copy(update={"species": spc_df, "reactions": rxn_df})
+
+
+def with_comments(  # noqa: PLR0913
+    mech: Mechanism,
+    *,
+    col: str = "comment",
+    header: str | None = None,
+    rxn_data_cols: Sequence[str] | None = None,
+    spc_data_cols: Sequence[str] | None = None,
+    data_encoder: Encoder = encoder.simple,
+    update: bool = False,
+) -> Mechanism:
+    """Add comment column for species and reactions.
+
+    :param mech: Mechanism
+    :param col: Key column identifying common species and reactions
+    :param header: Optional header for comment
+    :param update: Whether to update existing comment column instead of replacing it
+    :return: Mechanism
+    """
+    mech.species = df_.with_comments(
+        mech.species,
+        col=col,
+        header=header,
+        data_cols=spc_data_cols,
+        data_encoder=data_encoder,
+        update=update,
+    )
+    mech.reactions = df_.with_comments(
+        mech.reactions,
+        col=col,
+        header=header,
+        data_cols=rxn_data_cols,
+        data_encoder=data_encoder,
+        update=update,
+    )
+    return mech
 
 
 def with_key(
