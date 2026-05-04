@@ -921,7 +921,7 @@ def node_paths_from_source(
     :param leaf_keys: Leaf keys
     :return: Node paths
     """
-    D = digraph_from_source(surf, key)
+    D = digraph_from_source(surf, key, leaf_keys=leaf_keys)
     return digraph.all_simple_root_leaf_node_paths(
         D, root_keys=[key], leaf_keys=leaf_keys
     )
@@ -1718,7 +1718,7 @@ def graph(surf: Surface) -> nx.Graph:
     return G
 
 
-def digraph_from_source(surf: Surface, key: int) -> nx.DiGraph:
+def digraph_from_source(surf: Surface, key: int, leaf_keys: Sequence[int] = ()) -> nx.DiGraph:
     """Convert to networkx DiGraph oriented away from a source key.
 
     :param surf: Surface
@@ -1729,18 +1729,23 @@ def digraph_from_source(surf: Surface, key: int) -> nx.DiGraph:
 
     # Compute shortest path distances from the root
     dist_dct = nx.single_source_shortest_path_length(G, key)
+    leaf_dist_dcts = [nx.single_source_shortest_path_length(G, k) for k in leaf_keys]
+
+
+    def distances(k: int) -> tuple[float, ...]:
+        return (dist_dct.get(k, float("inf")), *[-dct.get(k, float("inf")) for dct in leaf_dist_dcts])
 
     D = nx.DiGraph()
     D.add_nodes_from(G.nodes)
 
     for key1, key2 in G.edges:
-        dist1 = dist_dct.get(key1, float("inf"))
-        dist2 = dist_dct.get(key2, float("inf"))
+        dists1 = distances(key1)
+        dists2 = distances(key2)
 
         # Direct from smaller to larger distance
-        if dist1 < dist2:
+        if dists1 < dists2:
             D.add_edge(key1, key2)
-        elif dist2 < dist1:
+        elif dists2 < dists1:
             D.add_edge(key2, key1)
         else:
             # same distance — pick an arbitrary but consistent direction
